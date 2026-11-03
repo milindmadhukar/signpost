@@ -53,7 +53,7 @@
       <span><span class="mono">{{$l.Status}}</span> {{codeName $l.Status}}</span><span>·</span>
       <span>Created {{date $l.CreatedAt}}</span><span>·</span>
       <span class="num">{{thousands $l.Clicks}} clicks all time</span>
-      {{with $l.ExpiresAt}}<span>·</span><span>{{if lt . now}}Expired{{else}}Expires{{end}} {{whenTZ . $.TZ}}</span>{{end}}
+      {{with $l.ExpiresAt}}<span>·</span><span>{{if past .}}Expired{{else}}Expires{{end}} {{whenTZ . $.TZ}}</span>{{end}}
       {{range $l.Tags}}<span class="tag">{{.}}</span>{{end}}
     </div>
   </div>

@@ -50,7 +50,9 @@ var funcs = template.FuncMap{
 	"whenTZ": func(ts int64, tz int) string {
 		return time.Unix(ts, 0).In(time.FixedZone("", tz*60)).Format("Jan 2, 15:04")
 	},
-	"now":  func() int64 { return time.Now().Unix() },
+	// lt cannot compare a *int64 (what {{with .ExpiresAt}} yields); a
+	// function argument is dereferenced on the way in.
+	"past": func(ts int64) bool { return ts < time.Now().Unix() },
 	"date": func(ts int64) string { return time.Unix(ts, 0).Format("Jan 2, 2006") },
 	"stateClass": func(s string) string {
 		return map[string]string{"live": "b-ok", "pending": "b-wait", "dns": "b-warn", "error": "b-bad", "disabled": "b-off", "expired": "b-off"}[s]
