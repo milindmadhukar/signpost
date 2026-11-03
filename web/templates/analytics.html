@@ -2,9 +2,36 @@
 <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
   <div class="min-w-0">
     <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Analytics</h1>
-    <p class="mt-1 text-[13px] text-fg-3">Clicks across all {{plural $v.Links "link"}}. Visitors are counted with a daily-rotating hash; no IP addresses are stored.</p>
+    <p class="mt-1 text-[13px] text-fg-3">{{if $v.Selected}}One link. Pick “All links” to compare them side by side.{{else}}All {{plural $v.Links "link"}} together, then each one on its own below.{{end}} Unique visitors are counted per day with a rotating hash; no IP addresses are stored.</p>
   </div>
-  {{template "range-picker" dict "Ranges" $v.Ranges "Base" "/analytics" "Cur" $v.Stats.Range.Key}}
+  <div class="flex flex-wrap items-center gap-2">
+    <form method="get" action="/analytics" class="contents">
+      <input type="hidden" name="range" value="{{$v.Stats.Range.Key}}">
+      <select class="input w-auto max-w-[260px]" name="link" aria-label="Link" onchange="this.form.requestSubmit()">
+        <option value="">All links</option>
+        {{range $v.Options}}<option value="{{.ID}}" {{if and $v.Selected (eq .ID $v.Selected.ID)}}selected{{end}}>{{.URL}}</option>{{end}}
+      </select>
+      <noscript><button class="btn" type="submit">Show</button></noscript>
+    </form>
+    {{template "range-picker" dict "Ranges" $v.Ranges "Base" "/analytics" "Cur" $v.Stats.Range.Key "Link" $v.LinkID}}
+  </div>
 </div>
-{{template "stats-panel" dict "Stats" $v.Stats "Chart" $v.Chart "Heat" $v.Heat "Lists" $v.Lists "Global" true}}
+
+{{with $v.Selected}}
+<div class="card mb-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+  <div class="min-w-0">
+    <div class="flex items-center gap-2">
+      <span class="truncate text-[15px] font-semibold">{{.URL}}</span>{{template "state-badge" .State}}
+      {{if .Protected}}<span class="text-fg-3" title="Password protected">{{icon "lock" "icon-sm"}}</span>{{end}}
+    </div>
+    <div class="mt-0.5 truncate text-xs text-fg-3">{{icon "arrow-up-right" "icon-sm -mt-px mr-0.5 inline"}}{{.Target}}</div>
+  </div>
+  <div class="flex gap-2">
+    <a class="btn btn-sm" href="/analytics?range={{$v.Stats.Range.Key}}">{{icon "x" "icon-sm"}}All links</a>
+    <a class="btn btn-sm" href="/links/{{.ID}}?range={{$v.Stats.Range.Key}}">{{icon "settings" "icon-sm"}}Link settings</a>
+  </div>
+</div>
+{{end}}
+
+{{template "stats-panel" dict "Stats" $v.Stats "Chart" $v.Chart "Heat" $v.Heat "Lists" $v.Lists "Global" (not $v.Selected) "PerLink" $v.PerLink}}
 {{end}}

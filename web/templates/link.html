@@ -7,8 +7,11 @@
 <div class="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
   <section class="min-w-0">
     <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <h2 class="text-[15px] font-semibold">Analytics</h2>
-      {{template "range-picker" dict "Ranges" $v.Ranges "Base" (printf "/links/%d" $l.ID) "Cur" $v.Stats.Range.Key}}
+      <div class="flex items-center gap-3">
+        <h2 class="text-[15px] font-semibold">Analytics</h2>
+        <a class="text-xs text-fg-3 hover:text-fg" href="/analytics?range={{$v.Stats.Range.Key}}">Compare with all links {{icon "arrow-up-right" "icon-sm -mt-px inline"}}</a>
+      </div>
+      {{template "range-picker" dict "Ranges" $v.Ranges "Base" (printf "/links/%d" $l.ID) "Cur" $v.Stats.Range.Key "Link" 0}}
     </div>
     {{template "stats-panel" dict "Stats" $v.Stats "Chart" $v.Chart "Heat" $v.Heat "Lists" $v.Lists "Global" false}}
   </section>

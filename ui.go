@@ -222,7 +222,6 @@ func (a *App) uiRoutes(mux *http.ServeMux) {
 
 	ui := http.NewServeMux()
 	ui.HandleFunc("POST /ui/links", a.uiCreateLink)
-	ui.HandleFunc("GET /ui/slug", a.uiSlug)
 	ui.HandleFunc("POST /ui/links/{id}", a.uiSaveLink)
 	ui.HandleFunc("POST /ui/links/{id}/password", a.uiPassword)
 	ui.HandleFunc("POST /ui/links/{id}/toggle", a.uiToggle)
@@ -252,6 +251,7 @@ func (a *App) uiRoutes(mux *http.ServeMux) {
 
 type formView struct {
 	Host, Path, Target, Note, Tags, Expires string
+	HostOther                               bool // Host is typed in, not one of Hosts
 	Status                                  int
 	KeepQuery                               bool
 	Msg                                     string
@@ -360,11 +360,16 @@ func (a *App) uiCreateLink(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	status, _ := strconv.Atoi(r.FormValue("status"))
 	keep := r.FormValue("keep_query") == "1"
+	host := r.FormValue("host")
+	if host == "__other__" {
+		host = r.FormValue("host_other")
+	}
 	fv := formView{
-		Host: r.FormValue("host"), Path: r.FormValue("path"), Target: r.FormValue("target"), Note: r.FormValue("note"),
+		Host: host, Path: r.FormValue("path"), Target: r.FormValue("target"), Note: r.FormValue("note"),
 		Tags: r.FormValue("tags"), Expires: r.FormValue("expires_at"), Status: status, KeepQuery: keep,
 	}
 	fv.Hosts = a.newForm().Hosts
+	fv.HostOther = !contains(fv.Hosts, normHost(fv.Host))
 	exp, err := parseLocal(fv.Expires, tzOf(r))
 	if err == nil && exp != nil && *exp <= time.Now().Unix() {
 		err = fail(400, "expiry must be in the future")
@@ -398,15 +403,6 @@ func (a *App) uiCreateLink(w http.ResponseWriter, r *http.Request) {
 		v.OOB = true
 		render(w, "links", "links-table", v)
 	}
-}
-
-func (a *App) uiSlug(w http.ResponseWriter, r *http.Request) {
-	slug, err := a.newSlug(normHost(r.FormValue("host")), nil)
-	if err != nil {
-		toastErr(w, err)
-		slug = ""
-	}
-	render(w, "links", "path-input", strings.TrimPrefix(slug, "/"))
 }
 
 func (a *App) uiToggle(w http.ResponseWriter, r *http.Request) {
@@ -596,23 +592,75 @@ func (a *App) uiPassword(w http.ResponseWriter, r *http.Request) {
 // ---- Analytics ----
 
 type analyticsView struct {
-	Stats  *Stats
-	Chart  barChart
-	Heat   []heatRow
-	Lists  map[string][]barListRow
-	Ranges []statRange
-	Links  int
+	Stats    *Stats
+	Chart    barChart
+	Heat     []heatRow
+	Lists    map[string][]barListRow
+	Ranges   []statRange
+	Links    int
+	Selected *Link  // nil: all links
+	Options  []Link // for the link picker
+	PerLink  []perLinkRow
+	LinkID   int64 // kept in the range picker's links; 0 for all links
+	Active   int   // links with at least one click in the range
+}
+
+type perLinkRow struct {
+	linkStat
+	Spark template.HTML
+	Delta string
+	Sign  int
+	Share float64 // percent of all clicks in the range
+	Bar   float64 // bar width, percent of the busiest link, so small shares stay visible
 }
 
 func (a *App) pageAnalytics(w http.ResponseWriter, r *http.Request) {
-	st, chart, heat, lists, err := a.statsBundle(r, 0)
+	v := analyticsView{Ranges: statRanges}
+	v.Options, _ = a.store.Links()
+	v.Links = len(v.Options)
+	var id int64
+	if s := r.URL.Query().Get("link"); s != "" {
+		id, _ = strconv.ParseInt(s, 10, 64)
+		if l, err := a.store.Link(id); err == nil {
+			v.Selected = &l
+			v.LinkID = id
+		} else {
+			id = 0
+		}
+	}
+	st, chart, heat, lists, err := a.statsBundle(r, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	v := analyticsView{Stats: st, Chart: chart, Heat: heat, Lists: lists, Ranges: statRanges}
-	a.store.db.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&v.Links)
-	a.renderPage(w, r, "analytics", "Analytics", v)
+	v.Stats, v.Chart, v.Heat, v.Lists = st, chart, heat, lists
+	if id == 0 {
+		rows, err := a.store.PerLink(statsQuery{Range: st.Range, Now: time.Now(), TZ: tzOf(r)})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		top := 1
+		for _, ls := range rows {
+			top = max(top, ls.Clicks)
+		}
+		for _, ls := range rows {
+			row := perLinkRow{linkStat: ls, Spark: sparkline(ls.Series), Bar: float64(ls.Clicks) / float64(top) * 100}
+			row.Delta, row.Sign = delta(ls.Clicks, ls.PrevClicks)
+			if st.Clicks > 0 {
+				row.Share = float64(ls.Clicks) / float64(st.Clicks) * 100
+			}
+			if ls.Clicks > 0 {
+				v.Active++
+			}
+			v.PerLink = append(v.PerLink, row)
+		}
+	}
+	title := "Analytics"
+	if v.Selected != nil {
+		title = "Analytics · " + v.Selected.URL()
+	}
+	a.renderPage(w, r, "analytics", title, v)
 }
 
 // ---- Domains ----

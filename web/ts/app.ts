@@ -44,7 +44,25 @@ const toastIcons: Record<ToastDetail["kind"], string> = {
   err: '<svg class="icon mt-px text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
 };
 
-function showToast(kind: ToastDetail["kind"], msg: string): void {
+// The toast box is a manual popover, so it lives in the top layer. A modal
+// dialog opened later would cover it, so it is re-shown (moved to the top
+// of the stack) whenever a toast appears.
+// While a modal dialog is open everything outside it is inert, a toast
+// included, so its buttons could not be pressed. The box moves into the open
+// dialog, and back to <body> when it closes.
+function raiseToasts(): void {
+  const box = $("#toasts");
+  if (!box || !("showPopover" in box)) return;
+  const modal = $$<HTMLDialogElement>("dialog[open]").pop();
+  const home = modal ?? document.body;
+  if (box.matches(":popover-open")) box.hidePopover();
+  if (box.parentElement !== home) home.append(box);
+  if (box.childElementCount > 0) box.showPopover();
+}
+
+document.addEventListener("close", () => raiseToasts(), true);
+
+function showToast(kind: ToastDetail["kind"], msg: string, action?: { label: string; run: () => void }): void {
   const box = $("#toasts");
   if (!box) return;
   const el = document.createElement("div");
@@ -55,14 +73,26 @@ function showToast(kind: ToastDetail["kind"], msg: string): void {
   text.className = "min-w-0 flex-1 break-words text-fg";
   text.textContent = msg; // never innerHTML: messages echo user input
   el.append(text);
+  if (action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn btn-sm -my-1 shrink-0";
+    b.textContent = action.label;
+    b.addEventListener("click", action.run);
+    el.append(b);
+  }
   box.append(el);
+  raiseToasts();
   setTimeout(
     () => {
       el.style.transition = "opacity .2s";
       el.style.opacity = "0";
-      setTimeout(() => el.remove(), 200);
+      setTimeout(() => {
+        el.remove();
+        raiseToasts();
+      }, 200);
     },
-    kind === "err" ? 6000 : 3500,
+    action ? 10000 : kind === "err" ? 6000 : 3500,
   );
 }
 
@@ -85,6 +115,7 @@ document.addEventListener("htmx:confirm", (e) => {
     if (dlg.returnValue === "ok") issueRequest(true);
   }, { once: true });
   dlg.showModal();
+  raiseToasts();
 });
 
 // ---- Clicks: copy, theme, dialogs, menus, mobile nav, table rows ----
@@ -93,16 +124,6 @@ function closeMenus(except?: EventTarget | null): void {
   for (const d of $$<HTMLDetailsElement>("details.menu[open]")) {
     if (!(except instanceof Node && d.contains(except))) d.open = false;
   }
-  const picker = $("[data-host-picker]");
-  if (!(except instanceof Node && picker?.contains(except))) setHostOptions(false);
-}
-
-function setHostOptions(open: boolean): void {
-  const options = $<HTMLElement>("#host-options");
-  const toggle = $<HTMLButtonElement>("[data-host-toggle]");
-  if (!options || !toggle) return;
-  options.hidden = !open;
-  toggle.setAttribute("aria-expanded", String(open));
 }
 
 document.addEventListener("click", (e) => {
@@ -128,12 +149,26 @@ document.addEventListener("click", (e) => {
     return;
   }
 
+  if (target.closest("[data-generate-slug]")) {
+    const path = $<HTMLInputElement>("#f-path");
+    if (path) {
+      path.value = randomSlug();
+      path.focus();
+      path.select();
+    }
+    return;
+  }
+
+  // Following a sidebar link on a phone: close the drawer straight away,
+  // rather than leave it over the page that loads.
+  if (target.closest("aside a[href]")) document.body.removeAttribute("data-nav-open");
+
   const open = target.closest<HTMLElement>("[data-open]");
   if (open?.dataset.open) {
     const dlg = document.getElementById(open.dataset.open);
     if (dlg instanceof HTMLDialogElement) {
-      if (dlg.id === "new-link") setHostOptions(false);
       dlg.showModal();
+      raiseToasts();
       $<HTMLInputElement>("[autofocus], input:not([type=hidden])", dlg)?.focus();
     }
     return;
@@ -142,26 +177,6 @@ document.addEventListener("click", (e) => {
   const close = target.closest("[data-close]");
   if (close) {
     close.closest("dialog")?.close();
-    return;
-  }
-
-  const hostToggle = target.closest<HTMLButtonElement>("[data-host-toggle]");
-  if (hostToggle) {
-    const wasOpen = $<HTMLElement>("#host-options")?.hidden === false;
-    closeMenus(hostToggle);
-    setHostOptions(!wasOpen);
-    return;
-  }
-
-  const hostChoice = target.closest<HTMLButtonElement>("[data-host-choice]");
-  if (hostChoice) {
-    const input = $<HTMLInputElement>("#f-host");
-    if (input) {
-      input.value = hostChoice.dataset.hostChoice ?? "";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.focus();
-    }
-    setHostOptions(false);
     return;
   }
 
@@ -185,6 +200,81 @@ document.addEventListener("click", (e) => {
   if (row && !target.closest("a, button, input, label, details, summary")) {
     $<HTMLAnchorElement>("a[data-row-link]", row)?.click();
   }
+});
+
+// ---- Short slugs ----
+
+// Same alphabet as slugAlphabet in service.go: no 0/O or 1/l/I, so a slug
+// read off a poster survives. Made here so Generate is instant; the server
+// still refuses a path that is taken when the link is created.
+const SLUG_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+const SLUG_LENGTH = 7;
+
+function randomSlug(): string {
+  const out: string[] = [];
+  const buf = new Uint8Array(1);
+  while (out.length < SLUG_LENGTH) {
+    crypto.getRandomValues(buf);
+    const b = buf[0] ?? 255;
+    // 256 is not a multiple of 56: drop the top of the range to stay uniform.
+    if (b < 224) out.push(SLUG_ALPHABET.charAt(b % SLUG_ALPHABET.length));
+  }
+  return out.join("");
+}
+
+// ---- Domain picker: "Other domain…" reveals a text field ----
+
+document.addEventListener("change", (e) => {
+  const sel = e.target;
+  if (!(sel instanceof HTMLSelectElement) || !sel.matches("[data-host-select]")) return;
+  const other = $<HTMLInputElement>("#f-host-other");
+  if (!other) return;
+  const typing = sel.value === "__other__";
+  other.hidden = !typing;
+  other.required = typing;
+  if (typing) other.focus();
+});
+
+// ---- Loading feedback ----
+// A thin bar at the top for anything that takes longer than a moment, and a
+// dimmed page while a boosted navigation loads. Buttons show their own
+// spinner through the .htmx-request class (see app.css).
+
+let inflight = 0;
+let progressTimer: number | undefined;
+
+function setProgress(on: boolean): void {
+  const bar = $("#progress");
+  if (!bar) return;
+  if (on) {
+    bar.style.opacity = "1";
+    bar.style.transform = "scaleX(0.7)";
+  } else {
+    bar.style.transform = "scaleX(1)";
+    setTimeout(() => {
+      bar.style.opacity = "0";
+      bar.style.transform = "scaleX(0)";
+    }, 200);
+  }
+}
+
+document.addEventListener("htmx:beforeRequest", (e) => {
+  inflight++;
+  if (e.detail.boosted) document.body.setAttribute("data-loading", "");
+  window.clearTimeout(progressTimer);
+  progressTimer = window.setTimeout(() => setProgress(true), 120);
+});
+
+document.addEventListener("htmx:afterRequest", () => {
+  inflight = Math.max(0, inflight - 1);
+  if (inflight > 0) return;
+  window.clearTimeout(progressTimer);
+  document.body.removeAttribute("data-loading");
+  setProgress(false);
+});
+
+document.addEventListener("htmx:beforeSwap", (e) => {
+  if (e.detail.boosted) document.body.removeAttribute("data-nav-open");
 });
 
 // ---- Bulk selection on the links table ----
@@ -214,9 +304,6 @@ document.addEventListener("change", (e) => {
   }
   if (t.matches("#links-table input[type=checkbox]")) syncSelection();
 });
-document.addEventListener("input", (e) => {
-  if (e.target instanceof HTMLInputElement && e.target.id === "f-host") setHostOptions(false);
-});
 document.addEventListener("htmx:afterSwap", syncSelection);
 
 // ---- Drawer: close after a link is created ----
@@ -232,13 +319,6 @@ document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const typing = e.target instanceof Element ? e.target.closest<HTMLElement>("input, textarea, select, [contenteditable]") : null;
   if (e.key === "Escape") {
-    const hostOptions = $<HTMLElement>("#host-options");
-    if (hostOptions && !hostOptions.hidden) {
-      e.preventDefault();
-      setHostOptions(false);
-      $<HTMLButtonElement>("[data-host-toggle]")?.focus();
-      return;
-    }
     closeMenus();
     if (typing instanceof HTMLInputElement && typing.name === "q") typing.blur();
     document.body.removeAttribute("data-nav-open");
@@ -267,14 +347,23 @@ document.addEventListener("keydown", (e) => {
 
 document.addEventListener("htmx:sendError", () => {
   // Offline, a reload would only swap the page (and any half-filled form)
-  // for the offline page.
-  if (!navigator.onLine) showToast("err", "You're offline. Try again once you're connected.");
-  else location.reload();
+  // for the offline page, so just say so.
+  if (!navigator.onLine) {
+    showToast("err", "You're offline. Try again once you're connected.");
+    return;
+  }
+  showToast("err", "Could not reach signpost. If you were away a while, your sign-in may have expired.", {
+    label: "Reload",
+    run: () => location.reload(),
+  });
 });
 document.addEventListener("htmx:responseError", (e) => {
   const status = e.detail.xhr.status;
-  if (status === 401 || status === 403) location.reload();
-  else showToast("err", `Request failed (${status})`);
+  if (status === 401) {
+    showToast("err", "Your sign-in has expired.", { label: "Sign in", run: () => location.reload() });
+  } else {
+    showToast("err", `Something went wrong (${status}). Nothing was changed.`, { label: "Reload", run: () => location.reload() });
+  }
 });
 
 // Keep the viewer's time zone fresh for server-side bucketing.

@@ -30,38 +30,24 @@
   <div class="card-body">{{template "bar-chart" .Chart}}</div>
 </div>
 
-<div class="mt-3 grid gap-3 {{if .Global}}lg:grid-cols-[1.35fr_1fr]{{else}}lg:grid-cols-[1.35fr_1fr]{{end}}">
+{{with .PerLink}}{{template "per-link-table" dict "Rows" . "Range" $s.Range.Key}}{{end}}
+
+<div class="mt-3 grid gap-3 lg:grid-cols-[1.35fr_1fr]">
   <div class="card">
     <div class="card-head">
       <div><div class="card-title">When people click</div><div class="text-xs text-fg-3">Day of week by hour of day</div></div>
     </div>
     <div class="card-body">{{template "heatmap" .Heat}}</div>
   </div>
-  {{if .Global}}
-    {{template "barlist-card" dict "Title" "Top links" "Rows" (index .Lists "Links")}}
-  {{else}}
-    {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
-  {{end}}
+  {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
 </div>
 
-{{if .Global}}
-<div class="mt-3 grid gap-3 md:grid-cols-2">
-  {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
-  {{template "barlist-card" dict "Title" "Countries" "Rows" (index .Lists "Countries")}}
-</div>
-<div class="mt-3 grid gap-3 md:grid-cols-3">
-  {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
-  {{template "barlist-card" dict "Title" "Browsers" "Rows" (index .Lists "Browsers")}}
-  {{template "barlist-card" dict "Title" "Operating systems" "Rows" (index .Lists "OS")}}
-</div>
-{{else}}
 <div class="mt-3 grid gap-3 md:grid-cols-2">
   {{template "barlist-card" dict "Title" "Countries" "Rows" (index .Lists "Countries")}}
   {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
   {{template "barlist-card" dict "Title" "Browsers" "Rows" (index .Lists "Browsers")}}
   {{template "barlist-card" dict "Title" "Operating systems" "Rows" (index .Lists "OS")}}
 </div>
-{{end}}
 
 <div class="card mt-3 overflow-hidden">
   <div class="card-head"><div class="card-title">Recent clicks</div><span class="text-xs text-fg-3">Latest 12, bots excluded</span></div>
@@ -163,6 +149,51 @@
     {{else}}
     <div class="px-2 py-8 text-center text-[13px] text-fg-3">Nothing yet</div>
     {{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* Every link side by side: the per-link view of the Analytics page. */}}
+{{define "per-link-table"}}{{$range := .Range}}
+<div class="card mt-3 overflow-hidden" id="per-link">
+  <div class="card-head">
+    <div><div class="card-title">By link</div><div class="text-xs text-fg-3">Every link over the same period. Open one for its own charts.</div></div>
+  </div>
+  <div class="overflow-x-auto">
+  <table class="table">
+    <thead><tr>
+      <th>Link</th>
+      <th class="hidden md:table-cell">Trend</th>
+      <th class="text-right">Clicks</th>
+      <th class="hidden w-40 sm:table-cell">Share of clicks</th>
+      <th class="hidden text-right md:table-cell">Visitors</th>
+      <th class="text-right">Change</th>
+      <th class="w-8"><span class="sr-only">Open</span></th>
+    </tr></thead>
+    <tbody>
+    {{range $i, $r := .Rows}}
+      <tr data-row class="cursor-pointer {{if eq $r.Clicks 0}}text-fg-3{{end}}">
+        <td class="max-w-[48vw] sm:max-w-[340px]">
+          <a href="/links/{{$r.ID}}?range={{$range}}" data-row-link class="block truncate font-medium {{if gt $r.Clicks 0}}text-fg{{end}}">{{$r.URL}}</a>
+          <div class="truncate text-xs text-fg-3" title="{{$r.Target}}">{{$r.Target}}</div>
+        </td>
+        <td class="hidden md:table-cell">{{$r.Spark}}</td>
+        <td class="text-right font-medium num">{{thousands $r.Clicks}}</td>
+        <td class="hidden sm:table-cell">
+          <div class="flex items-center gap-2">
+            <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-subtle"><div class="h-full rounded-full bg-series" style="width: {{pct $r.Bar}}"></div></div>
+            <span class="w-9 text-right text-xs text-fg-3 num">{{printf "%.0f" $r.Share}}%</span>
+          </div>
+        </td>
+        <td class="hidden text-right text-fg-2 md:table-cell num">{{thousands $r.Visitors}}</td>
+        <td class="text-right">
+          {{if $r.Delta}}<span class="delta {{if eq $r.Sign 1}}delta-up{{else if eq $r.Sign -1}}delta-down{{else}}delta-flat{{end}} justify-end">{{if eq $r.Sign 1}}{{icon "arrow-up-right" "icon-sm"}}{{else if eq $r.Sign -1}}{{icon "arrow-down-right" "icon-sm"}}{{end}}{{$r.Delta}}</span>{{else}}<span class="text-xs text-fg-3">–</span>{{end}}
+        </td>
+        <td class="text-right text-fg-3">{{icon "chevron-right" "icon-sm"}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
   </div>
 </div>
 {{end}}

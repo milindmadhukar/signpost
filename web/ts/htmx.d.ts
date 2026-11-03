@@ -11,6 +11,7 @@ interface HtmxResponseDetail {
   xhr: XMLHttpRequest;
   elt: HTMLElement;
   successful: boolean;
+  boosted?: boolean;
 }
 
 interface ToastDetail {
@@ -22,6 +23,9 @@ interface DocumentEventMap {
   "htmx:confirm": CustomEvent<HtmxConfirmDetail>;
   "htmx:load": CustomEvent<{ elt: HTMLElement }>;
   "htmx:afterSwap": CustomEvent<HtmxResponseDetail>;
+  "htmx:beforeSwap": CustomEvent<HtmxResponseDetail>;
+  "htmx:beforeRequest": CustomEvent<HtmxResponseDetail>;
+  "htmx:afterRequest": CustomEvent<HtmxResponseDetail>;
   "htmx:sendError": CustomEvent<HtmxResponseDetail>;
   "htmx:responseError": CustomEvent<HtmxResponseDetail>;
   toast: CustomEvent<ToastDetail>;

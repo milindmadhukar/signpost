@@ -11,9 +11,9 @@
   </div>
 </div>
 
-<form id="filters" class="mb-3 flex flex-wrap items-center gap-2" role="search"
+<form id="filters" class="mb-3 flex flex-wrap items-center gap-2" role="search" hx-sync="this:replace"
       hx-get="/links" hx-target="#links-table" hx-select="#links-table" hx-swap="outerHTML" hx-push-url="true"
-      hx-trigger="input changed delay:250ms from:find input[name=q], search from:find input[name=q], change from:find select, submit">
+      hx-trigger="input changed delay:250ms from:find input[name=q], search from:find input[name=q], change[target.tagName === 'SELECT'], submit">
   <div class="relative w-full sm:w-80">
     {{icon "search" "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3"}}
     <input class="input pl-8 pr-8" type="search" name="q" value="{{$v.Filter.Q}}" placeholder="Search links, destinations, notes" autocomplete="off" aria-label="Search links">
@@ -44,12 +44,12 @@
 {{end}}
 
 {{define "links-table"}}
-<div id="links-table" {{if .OOB}}hx-swap-oob="true"{{end}}
+<div id="links-table" hx-disinherit="*" {{if .OOB}}hx-swap-oob="true"{{end}}
   {{if .Polling}}hx-get="{{.Self}}" hx-select="#links-table" hx-target="this" hx-swap="outerHTML"
   hx-trigger="every 4s [!document.querySelector('#links-table input[name=ids]:checked') && !document.querySelector('dialog[open], details.menu[open]')]"{{end}}>
   {{if .Err}}<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{{.Err}}</div>{{end}}
-  <form id="links-form" class="card" hx-target="#links-table" hx-swap="outerHTML">
-    <div id="bulk-bar" hidden class="sticky top-14 z-10 rounded-t-xl border-b border-line bg-surface md:top-0">
+  <form id="links-form" class="card">
+    <div id="bulk-bar" hidden class="sticky top-14 z-10 rounded-t-xl border-b border-line bg-surface md:top-0" hx-target="#links-table" hx-swap="outerHTML">
       <div class="flex flex-wrap items-center gap-2 px-4 py-2">
         <span id="bulk-count" class="mr-1 text-[13px] font-medium">0 selected</span>
         <button type="button" class="btn btn-sm" hx-post="/ui/bulk" hx-vals='{"action":"enable"}'>{{icon "circle-play" "icon-sm"}}Enable</button>
@@ -71,7 +71,7 @@
     <div class="overflow-x-auto md:overflow-visible">
     <table class="table">
       <thead><tr>
-        <th class="w-10 pr-0"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></th>
+        <th class="w-10 p-0 first:pl-0"><label class="flex h-9 cursor-pointer items-center pl-4 pr-3"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></label></th>
         <th>Link</th>
         <th class="hidden lg:table-cell">Destination</th>
         <th class="hidden md:table-cell">Last 7 days</th>
@@ -83,7 +83,7 @@
       <tbody>
       {{range .Rows}}
         <tr data-row class="cursor-pointer">
-          <td><input type="checkbox" class="check" name="ids" value="{{.ID}}" aria-label="Select {{.URL}}"></td>
+          <td class="p-0 pl-0 first:pl-0"><label class="flex h-full min-h-12 cursor-pointer items-center pl-4 pr-3"><input type="checkbox" class="check" name="ids" value="{{.ID}}" aria-label="Select {{.URL}}"></label></td>
           <td class="max-w-[48vw] sm:max-w-[320px]">
             <div class="flex min-w-0 items-center gap-1.5">
               <a href="/links/{{.ID}}" data-row-link class="truncate font-medium text-fg"><span class="text-fg-3">{{.Host}}</span>{{shown .Path}}</a>
@@ -102,8 +102,8 @@
             <div class="truncate text-fg-2" title="{{.Target}}">{{.Target}}</div>
             <div class="mt-0.5 text-xs text-fg-3"><span class="mono">{{.Status}}</span> · {{codeName .Status}}{{if not .KeepQuery}} · drops query{{end}}{{with .ExpiresAt}} · expires {{date .}}{{end}}</div>
           </td>
-          <td class="hidden md:table-cell"><div class="flex items-center gap-2">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></div></td>
-          <td class="text-right font-medium num">{{thousands .Clicks}}</td>
+          <td class="hidden md:table-cell"><a href="/links/{{.ID}}" class="flex items-center gap-2 rounded hover:opacity-80" title="Analytics for {{.URL}}">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></a></td>
+          <td class="text-right font-medium num"><a href="/links/{{.ID}}" class="hover:text-accent hover:underline" title="Analytics for {{.URL}}">{{thousands .Clicks}}</a></td>
           <td class="hidden sm:table-cell"><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
           <td class="hidden whitespace-nowrap text-fg-3 xl:table-cell">{{agoUnix .CreatedAt}}</td>
           <td>
@@ -112,13 +112,14 @@
               <details class="menu">
                 <summary class="btn btn-ghost btn-icon btn-sm" aria-label="More actions" title="More">{{icon "ellipsis" "icon-sm"}}</summary>
                 <div class="menu-list">
-                  <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics and settings</a>
+                  <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics</a>
+                  <a class="menu-item" href="/links/{{.ID}}#settings-card">{{icon "settings" "icon-sm"}}Settings</a>
                   <button type="button" class="menu-item sm:hidden" data-copy="{{.Href}}">{{icon "copy" "icon-sm"}}Copy link</button>
                   <a class="menu-item" href="{{.Href}}" target="_blank" rel="noopener" hx-boost="false">{{icon "external-link" "icon-sm"}}Open link</a>
-                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/check">{{icon "refresh-cw" "icon-sm"}}Check again</button>
-                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/toggle">{{if .Disabled}}{{icon "circle-play" "icon-sm"}}Enable{{else}}{{icon "circle-pause" "icon-sm"}}Disable{{end}}</button>
+                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/check" hx-target="#links-table" hx-swap="outerHTML">{{icon "refresh-cw" "icon-sm"}}Check again</button>
+                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/toggle" hx-target="#links-table" hx-swap="outerHTML">{{if .Disabled}}{{icon "circle-play" "icon-sm"}}Enable{{else}}{{icon "circle-pause" "icon-sm"}}Disable{{end}}</button>
                   <div class="my-1 h-px bg-line"></div>
-                  <button type="button" class="menu-item danger" hx-delete="/ui/links/{{.ID}}"
+                  <button type="button" class="menu-item danger" hx-delete="/ui/links/{{.ID}}" hx-target="#links-table" hx-swap="outerHTML"
                     hx-confirm="Delete {{.URL}}? Its click history is deleted with it.">{{icon "trash-2" "icon-sm"}}Delete</button>
                 </div>
               </details>
@@ -148,8 +149,6 @@
 </div>
 {{end}}
 
-{{define "path-input"}}<input class="input input-mono rounded-l-none" id="f-path" name="path" value="{{.}}" placeholder="leave empty to generate" autocomplete="off" spellcheck="false">{{end}}
-
 {{define "linkform"}}
 <form id="linkform" class="flex h-full flex-col" hx-post="/ui/links" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
   <div class="flex items-center justify-between border-b border-line px-5 py-4">
@@ -165,22 +164,23 @@
     <div>
       <label class="label" for="f-host">Short link</label>
       <div class="flex">
-        <div class="relative w-[46%]" data-host-picker>
-          <input class="input input-mono rounded-r-none border-r-0 {{if .Hosts}}pr-8{{end}}" id="f-host" name="host" placeholder="milind.dev" value="{{.Host}}" required autocomplete="off" spellcheck="false">
-          {{if .Hosts}}
-          <button type="button" class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-fg-3 hover:text-fg" data-host-toggle aria-label="Choose an existing domain" aria-controls="host-options" aria-expanded="false">{{icon "chevron-down" "icon-sm"}}</button>
-          <div id="host-options" class="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-lg" hidden>
-            {{range .Hosts}}<button type="button" class="menu-item input-mono w-full" data-host-choice="{{.}}">{{.}}</button>{{end}}
-          </div>
-          {{end}}
-        </div>
-        <span class="flex items-center border-y border-line bg-subtle px-2 text-fg-3">/</span>
-        <div class="relative flex-1">{{template "path-input" .Path}}</div>
+        {{if .Hosts}}
+        <select class="input w-[46%] shrink-0 rounded-r-none" id="f-host" name="host" data-host-select aria-label="Domain">
+          {{range .Hosts}}<option value="{{.}}" {{if and (not $.HostOther) (eq . $.Host)}}selected{{end}}>{{.}}</option>{{end}}
+          <option value="__other__" {{if .HostOther}}selected{{end}}>Other domain…</option>
+        </select>
+        {{else}}
+        <input class="input input-mono w-[46%] shrink-0 rounded-r-none" id="f-host" name="host" placeholder="milind.dev" value="{{.Host}}" required autocomplete="off" spellcheck="false" aria-label="Domain">
+        {{end}}
+        <span class="flex items-center border-y border-line bg-subtle px-2 text-fg-3" aria-hidden="true">/</span>
+        <input class="input input-mono min-w-0 flex-1 rounded-none" id="f-path" name="path" value="{{.Path}}" placeholder="empty: generated" autocomplete="off" spellcheck="false" aria-label="Path">
+        <button type="button" class="btn rounded-l-none border-l-0 px-2.5" data-generate-slug title="Generate a random slug">{{icon "wand-sparkles" "icon-sm"}}<span class="hidden sm:inline">Generate</span></button>
       </div>
-      <div class="mt-1.5 flex items-start justify-between gap-3">
-        <p class="hint mt-0">Empty path: a random 7-character slug. <span class="mono">*</span> sends every path on the host.</p>
-        <button type="button" class="btn btn-sm shrink-0" hx-disabled-elt="this" hx-get="/ui/slug" hx-include="#f-host" hx-target="#f-path" hx-swap="outerHTML">{{icon "wand-sparkles" "icon-sm"}}Generate</button>
-      </div>
+      {{if .Hosts}}
+      <input class="input input-mono mt-2" id="f-host-other" name="host_other" placeholder="New domain, e.g. go.example.com" value="{{if .HostOther}}{{.Host}}{{end}}"
+        autocomplete="off" spellcheck="false" aria-label="New domain" {{if not .HostOther}}hidden{{else}}required{{end}}>
+      {{end}}
+      <p class="hint">Leave the path empty for a random 7-character slug, or use <span class="mono">*</span> to send every path on the domain.</p>
     </div>
     <div>
       <label class="label" for="f-status">Redirect type</label>
@@ -227,7 +227,10 @@
   </div>
   <div class="flex justify-end gap-2 border-t border-line px-5 py-4">
     <button type="button" class="btn" data-close>Cancel</button>
-    <button type="submit" class="btn btn-primary">Create link</button>
+    <button type="submit" class="btn btn-primary">
+      <span class="busy-hide">Create link</span>
+      <span class="busy-show">{{icon "loader-circle" "icon-sm animate-spin"}}Checking the path…</span>
+    </button>
   </div>
 </form>
 {{end}}
