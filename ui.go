@@ -118,7 +118,7 @@ func agoUnix(ts int64) string {
 	s := time.Since(time.Unix(ts, 0))
 	switch {
 	case s < time.Minute:
-		return "Just now"
+		return "just now"
 	case s < time.Hour:
 		return strconv.Itoa(int(s.Minutes())) + "m ago"
 	case s < 24*time.Hour:

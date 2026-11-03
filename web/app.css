@@ -150,7 +150,7 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 0.5rem center;
   }
-  .input-mono { @apply font-mono text-[12.5px]; }
+  .input-mono { @apply font-mono text-[12.5px] placeholder:font-sans placeholder:text-[13px]; }
   .label { @apply mb-1.5 block text-[13px] font-medium text-fg; }
   .hint { @apply mt-1.5 text-xs text-fg-3; }
   .check {
@@ -162,7 +162,7 @@
   .check:indeterminate::after { content: ""; @apply absolute left-[3px] right-[3px] top-1/2 h-[2px] -translate-y-1/2 rounded bg-primary-fg; }
 
   /* Surfaces */
-  .card { @apply rounded-xl border border-line bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.03)]; }
+  .card { @apply min-w-0 rounded-xl border border-line bg-surface shadow-[0_1px_2px_rgba(0,0,0,0.03)]; }
   .card-head { @apply flex items-center justify-between gap-3 border-b border-line px-4 py-3; }
   .card-title { @apply text-[13px] font-semibold text-fg; }
   .card-body { @apply p-4; }

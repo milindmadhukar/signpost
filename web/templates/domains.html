@@ -37,7 +37,7 @@
     {{range .Domains}}
       <tr>
         <td class="align-top">
-          <a class="mono font-medium hover:text-accent" href="/links?host={{.Host}}">{{.Host}}</a>
+          <a class="font-medium hover:text-accent" href="/links?host={{.Host}}">{{.Host}}</a>
           {{if .DNSChecked}}<div class="mt-0.5 text-xs text-fg-3">Checked {{agoUnix .DNSChecked}}</div>{{end}}
         </td>
         <td class="max-w-xs align-top">
@@ -45,8 +45,8 @@
           {{if .DNSMsg}}<div class="mt-1 text-xs leading-relaxed text-fg-3">{{titleCase .DNSMsg}}</div>{{end}}
         </td>
         <td class="text-right align-top font-medium num">{{.Links}}</td>
-        <td class="hidden align-top md:table-cell"><input class="input input-mono min-w-56" form="dom-{{.Host}}" name="fallback" value="{{.Fallback}}" placeholder="None: other paths stay with the site" aria-label="Fallback for {{.Host}}"></td>
-        <td class="hidden align-top lg:table-cell"><input class="input input-mono w-36" form="dom-{{.Host}}" name="cert_resolver" value="{{.CertResolver}}" aria-label="Cert resolver for {{.Host}}"></td>
+        <td class="hidden align-top md:table-cell"><input class="input input-mono min-w-56" form="dom-{{.Host}}" name="fallback" value="{{.Fallback}}" placeholder="None, other paths stay with the site" aria-label="Fallback for {{.Host}}"></td>
+        <td class="hidden align-top lg:table-cell"><input class="input input-mono w-36" form="dom-{{.Host}}" name="cert_resolver" value="{{.CertResolver}}" placeholder="Default" aria-label="Cert resolver for {{.Host}}"></td>
         <td class="align-top">
           <div class="flex items-center justify-end gap-0.5">
             <form id="dom-{{.Host}}" hx-put="/ui/domains/{{.Host}}" hx-target="#domains-table" hx-swap="outerHTML"><button type="submit" class="btn btn-ghost btn-sm">Save</button></form>

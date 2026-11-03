@@ -71,20 +71,20 @@
     <div class="overflow-x-auto md:overflow-visible">
     <table class="table">
       <thead><tr>
-        <th class="w-10"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></th>
+        <th class="w-10 pr-0"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></th>
         <th>Link</th>
         <th class="hidden lg:table-cell">Destination</th>
         <th class="hidden md:table-cell">Last 7 days</th>
         <th class="text-right">Clicks</th>
-        <th>Status</th>
+        <th class="hidden sm:table-cell">Status</th>
         <th class="hidden xl:table-cell">Created</th>
-        <th class="w-20"><span class="sr-only">Actions</span></th>
+        <th class="w-10 sm:w-20"><span class="sr-only">Actions</span></th>
       </tr></thead>
       <tbody>
       {{range .Rows}}
         <tr data-row class="cursor-pointer">
           <td><input type="checkbox" class="check" name="ids" value="{{.ID}}" aria-label="Select {{.URL}}"></td>
-          <td class="max-w-[320px]">
+          <td class="max-w-[48vw] sm:max-w-[320px]">
             <div class="flex min-w-0 items-center gap-1.5">
               <a href="/links/{{.ID}}" data-row-link class="truncate font-medium text-fg"><span class="text-fg-3">{{.Host}}</span>{{shown .Path}}</a>
               {{if .Protected}}<span title="Password protected" class="text-fg-3">{{icon "lock" "icon-sm"}}</span>{{end}}
@@ -95,6 +95,7 @@
               {{if .Note}}<span class="truncate text-xs text-fg-3">{{.Note}}</span>{{end}}
             </div>
             {{end}}
+            <div class="mt-1.5 sm:hidden">{{template "state-badge" .State}}</div>
             <div class="mt-1 truncate text-xs text-fg-3 lg:hidden">{{icon "arrow-up-right" "icon-sm -mt-px mr-0.5 inline"}}{{.Target}}</div>
           </td>
           <td class="hidden max-w-[300px] lg:table-cell">
@@ -103,15 +104,16 @@
           </td>
           <td class="hidden md:table-cell"><div class="flex items-center gap-2">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></div></td>
           <td class="text-right font-medium num">{{thousands .Clicks}}</td>
-          <td><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
+          <td class="hidden sm:table-cell"><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
           <td class="hidden whitespace-nowrap text-fg-3 xl:table-cell">{{agoUnix .CreatedAt}}</td>
           <td>
             <div class="flex items-center justify-end gap-0.5">
-              <button type="button" class="btn btn-ghost btn-icon btn-sm" data-copy="{{.Href}}" title="Copy link" aria-label="Copy {{.URL}}">{{icon "copy" "icon-sm"}}</button>
+              <button type="button" class="btn btn-ghost btn-icon btn-sm hidden sm:inline-flex" data-copy="{{.Href}}" title="Copy link" aria-label="Copy {{.URL}}">{{icon "copy" "icon-sm"}}</button>
               <details class="menu">
                 <summary class="btn btn-ghost btn-icon btn-sm" aria-label="More actions" title="More">{{icon "ellipsis" "icon-sm"}}</summary>
                 <div class="menu-list">
                   <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics and settings</a>
+                  <button type="button" class="menu-item sm:hidden" data-copy="{{.Href}}">{{icon "copy" "icon-sm"}}Copy link</button>
                   <a class="menu-item" href="{{.Href}}" target="_blank" rel="noopener" hx-boost="false">{{icon "external-link" "icon-sm"}}Open link</a>
                   <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/check">{{icon "refresh-cw" "icon-sm"}}Check again</button>
                   <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/toggle">{{if .Disabled}}{{icon "circle-play" "icon-sm"}}Enable{{else}}{{icon "circle-pause" "icon-sm"}}Disable{{end}}</button>
