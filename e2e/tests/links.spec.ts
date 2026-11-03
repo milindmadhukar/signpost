@@ -50,21 +50,26 @@ test.describe("new link drawer", () => {
     await expect(page.locator("#links-table a[data-row-link]", { hasText: host })).toContainText(/\/[2-9a-km-zA-HJ-NP-Z]{7}$/);
   });
 
-  test("Create shows it is working while the server checks the path", async ({ page }) => {
-    await page.goto("/links");
-    // Hold the request, as a slow live conflict check would.
-    await page.route("**/ui/links", async (route) => {
-      await new Promise((r) => setTimeout(r, 1200));
-      await route.continue();
+  // page.route() below cannot hold a request from a page a service worker
+  // controls (WebKit), so the worker is kept out of this test.
+  test.describe("with the request held", () => {
+    test.use({ serviceWorkers: "block" });
+    test("Create shows it is working while the server checks the path", async ({ page }) => {
+      await page.goto("/links");
+      // Hold the request, as a slow live conflict check would.
+      await page.route("**/ui/links", async (route) => {
+        await new Promise((r) => setTimeout(r, 1200));
+        await route.continue();
+      });
+      const drawer = await openDrawer(page);
+      await drawer.getByLabel("Destination URL").fill("https://example.com/slow");
+      await chooseHost(drawer, testHost());
+      const create = drawer.getByRole("button", { name: /Create link|Checking/ });
+      await create.click();
+      await expect(drawer.getByText("Checking the path…")).toBeVisible();
+      await expect(create).toBeDisabled();
+      await expect(drawer).toBeHidden({ timeout: 20_000 });
     });
-    const drawer = await openDrawer(page);
-    await drawer.getByLabel("Destination URL").fill("https://example.com/slow");
-    await chooseHost(drawer, testHost());
-    const create = drawer.getByRole("button", { name: /Create link|Checking/ });
-    await create.click();
-    await expect(drawer.getByText("Checking the path…")).toBeVisible();
-    await expect(create).toBeDisabled();
-    await expect(drawer).toBeHidden({ timeout: 20_000 });
   });
 
   test("a server-side error stays in the drawer, with what was typed", async ({ page }) => {
