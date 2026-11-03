@@ -118,7 +118,7 @@ func serve(cfg Config) error {
 	errc := make(chan error, 2)
 	go func() { errc <- pub.ListenAndServe() }()
 	go func() { errc <- adm.ListenAndServe() }()
-	log.Printf("redirects on %s, admin on %s", cfg.Listen, cfg.AdminListen)
+	log.Printf("signpost %s: redirects on %s, admin on %s", release, cfg.Listen, cfg.AdminListen)
 
 	// Re-check anything left pending by a previous run.
 	if links, err := st.Links(); err == nil {

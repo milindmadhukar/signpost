@@ -71,6 +71,7 @@ const usage = `signpost: short links and redirects for any domain behind Traefik
 
 server
   signpost serve
+  signpost version
   signpost demo-seed [-db dev.db]          fill an empty database with demo data
 
 client (talks to SIGNPOST_URL with SIGNPOST_TOKEN)
@@ -91,6 +92,10 @@ client (talks to SIGNPOST_URL with SIGNPOST_TOKEN)
   Targets and fallbacks may contain {path}, replaced with the request path.
 `
 
+// release is the version this binary was built as, set by the release
+// workflow and the Dockerfile with -ldflags "-X main.release=v1.2.3".
+var release = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Print(usage)
@@ -102,6 +107,8 @@ func main() {
 		err = serve(loadConfig())
 	case "demo-seed":
 		err = demoSeed(os.Args[2:])
+	case "version", "-v", "--version":
+		fmt.Println("signpost", release)
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:

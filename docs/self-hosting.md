@@ -25,8 +25,8 @@ You need:
   Traefik.
 - **A host for the dashboard**, such as `links.example.com`. signpost will
   refuse to put links on it.
-- **An x86-64 server** for the published image. On ARM, build the image
-  yourself from this repository (see [Building the image](#building-the-image)).
+- **A Linux server** on amd64, arm64 or armv7. The published image covers all
+  three, so a Raspberry Pi works as well as a VPS.
 
 signpost does not need its own domain for links. A link on `example.com/launch`
 is served from `example.com`, while every other path on `example.com` keeps
@@ -34,7 +34,8 @@ going wherever it went before.
 
 ## 1. Run the container
 
-Create a directory, say `~/docker/signpost`, with a `docker-compose.yml`:
+Create a directory for it, with a `docker-compose.yml` (the repository has the
+same file as [`docker-compose.yml`](../docker-compose.yml)):
 
 ```yaml
 services:
@@ -202,7 +203,7 @@ generated 7-character slug.
 From a terminal, with the same binary as a client:
 
 ```console
-$ docker cp signpost:/signpost ./signpost     # or build it: go build .
+$ # download the binary for your OS from the Releases page, or: go build .
 $ export SIGNPOST_URL=https://links.example.com SIGNPOST_TOKEN=<your token>
 $ ./signpost add example.com/launch https://example.org/a/very/long/url
 https://example.com/launch -> https://example.org/a/very/long/url (302)
@@ -247,6 +248,12 @@ $ docker compose pull -q && docker compose up -d
 The database schema is migrated in place on start. Back up first, since a
 migration only runs forward.
 
+`latest` always points at the newest release. To upgrade only when you choose,
+pin a version instead, such as `ghcr.io/milindmadhukar/signpost:1.2.3`, or a
+line such as `:1.2` for patch releases only. `:edge` follows every commit to
+`main` and is for trying unreleased changes. Releases and their notes are on
+the [Releases page](https://github.com/milindmadhukar/signpost/releases).
+
 ## Troubleshooting
 
 **A link stays on "Checking".** signpost is still probing it. A new hostname
@@ -274,16 +281,29 @@ dashboard runs your auth middleware and that `SIGNPOST_TRUST_REMOTE_USER=true`.
 **The CLI says "bad token".** The token sent does not match `SIGNPOST_TOKEN`,
 or the request went through a router that rewrote `Authorization`.
 
+## Running without Docker
+
+Each release has a static binary for Linux (amd64, arm64, armv7), macOS and
+Windows on the [Releases page](https://github.com/milindmadhukar/signpost/releases).
+It needs nothing else; the dashboard, fonts and scripts are built in.
+
+```console
+$ SIGNPOST_DB=/var/lib/signpost/signpost.db SIGNPOST_TOKEN=... \
+  SIGNPOST_UPSTREAM=http://127.0.0.1:8080 ./signpost serve
+```
+
+Point Traefik's HTTP provider at `http://<host>:8081/traefik.yml`, and set
+`SIGNPOST_UPSTREAM` to an address Traefik can reach port 8080 on.
+
 ## Building the image
 
-The published image is `linux/amd64`. To build your own, for another
-architecture or from a fork:
+To build your own, from a fork or for a platform of your choice:
 
 ```console
 $ git clone https://github.com/milindmadhukar/signpost && cd signpost
-$ docker build -t signpost .
+$ docker buildx build --platform linux/arm64 -t signpost --load .
 ```
 
-The Dockerfile fetches the x86-64 Tailwind and esbuild binaries for the
-build stage, so on ARM change the two download URLs to their `arm64`
-equivalents. Or build outside Docker: `make build` produces a static binary.
+The build stage runs on your machine's own architecture (amd64 or arm64) and
+Go cross-compiles for the target, so building an ARM image needs no
+emulation. Outside Docker, `make build` produces a static binary.
