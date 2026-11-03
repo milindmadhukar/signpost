@@ -1,0 +1,54 @@
+{{define "content"}}{{$v := .Data}}
+<div class="mb-6">
+  <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Settings</h1>
+  <p class="mt-1 text-[13px] text-fg-3">Defaults for new links, and what the server is doing.</p>
+</div>
+
+<div class="grid max-w-4xl gap-4">
+  <form class="card" hx-post="/ui/settings" hx-swap="none">
+    <div class="card-head"><div class="card-title">New links</div></div>
+    <div class="card-body">
+      <label class="label" for="st-host">Default host</label>
+      <input class="input input-mono max-w-sm" id="st-host" name="default_host" list="st-hosts" value="{{$v.DefaultHost}}" placeholder="the last host you used" autocomplete="off" spellcheck="false">
+      <datalist id="st-hosts">{{range $v.Hosts}}<option value="{{.}}"></option>{{end}}</datalist>
+      <p class="hint">The new-link form starts on this host. Empty: whichever host you used last.</p>
+    </div>
+    <div class="flex justify-end border-t border-line px-4 py-3"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
+  </form>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Redirect cache</div><span class="badge b-ok">Healthy</span></div>
+    <div class="card-body">
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-[13px] sm:grid-cols-4">
+        <div><dt class="text-xs text-fg-3">Routes in memory</dt><dd class="mt-1 text-[17px] font-semibold num">{{thousands $v.Routes}}</dd></div>
+        <div><dt class="text-xs text-fg-3">Last rebuilt</dt><dd class="mt-1 text-[17px] font-semibold">{{agoUnix $v.Built.Unix}}</dd></div>
+        <div><dt class="text-xs text-fg-3">Clicks queued</dt><dd class="mt-1 text-[17px] font-semibold num">{{$v.Queue}}</dd></div>
+        <div><dt class="text-xs text-fg-3">Clicks dropped</dt><dd class="mt-1 text-[17px] font-semibold num">{{$v.Dropped}}</dd></div>
+      </dl>
+      <p class="mt-4 text-[13px] leading-relaxed text-fg-2">Every link is held in memory, so a redirect never touches the database. The table is rebuilt on every change made here, and within 2 seconds of a change made to the database from outside. Clicks are written in batches about once a second.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Command line</div></div>
+    <div class="card-body space-y-3 text-[13px] text-fg-2">
+      <p>The same binary is the CLI. Point it at this dashboard with the API token:</p>
+      <pre class="mono overflow-x-auto rounded-md bg-subtle px-3 py-2.5 text-fg">export SIGNPOST_URL=https://{{or $v.AdminHost "links.example.com"}} SIGNPOST_TOKEN=…
+signpost add milind.dev/ade https://example.com -note "ADE"
+signpost import links.csv -dry-run
+signpost export > links.csv</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Storage</div></div>
+    <div class="card-body">
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-4 text-[13px] sm:grid-cols-4">
+        <div><dt class="text-xs text-fg-3">Links</dt><dd class="mt-1 text-[17px] font-semibold num">{{thousands $v.Links}}</dd></div>
+        <div><dt class="text-xs text-fg-3">Clicks recorded</dt><dd class="mt-1 text-[17px] font-semibold num">{{thousands $v.Clicks}}</dd></div>
+        <div class="col-span-2"><dt class="text-xs text-fg-3">Traefik config</dt><dd class="mono mt-1.5 text-fg-2">{{if $v.TraefikFile}}{{$v.TraefikFile}}{{else}}served at /traefik.yml{{end}}</dd></div>
+      </dl>
+    </div>
+  </div>
+</div>
+{{end}}

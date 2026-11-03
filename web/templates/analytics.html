@@ -1,0 +1,10 @@
+{{define "content"}}{{$v := .Data}}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Analytics</h1>
+    <p class="mt-1 text-[13px] text-fg-3">Clicks across all {{plural $v.Links "link"}}. Visitors are counted with a daily-rotating hash; no IP addresses are stored.</p>
+  </div>
+  {{template "range-picker" dict "Ranges" $v.Ranges "Base" "/analytics" "Cur" $v.Stats.Range.Key}}
+</div>
+{{template "stats-panel" dict "Stats" $v.Stats "Chart" $v.Chart "Heat" $v.Heat "Lists" $v.Lists "Global" true}}
+{{end}}

@@ -1,0 +1,24 @@
+{{define "page-header"}}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="text-[22px] font-semibold leading-tight tracking-tight">{{.Title}}</h1>
+    {{if .Sub}}<p class="mt-1 text-[13px] text-fg-3">{{.Sub}}</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "empty"}}
+<div class="flex flex-col items-center justify-center px-6 py-14 text-center">
+  <span class="mb-3 flex size-10 items-center justify-center rounded-full bg-subtle text-fg-3 ring-1 ring-line">{{icon .Icon}}</span>
+  <div class="text-[14px] font-medium">{{.Title}}</div>
+  {{if .Body}}<p class="mt-1 max-w-sm text-[13px] text-fg-3">{{.Body}}</p>{{end}}
+</div>
+{{end}}
+
+{{define "range-picker"}}
+<div class="seg" role="group" aria-label="Time range">
+  {{range .Ranges}}<a href="{{$.Base}}?range={{.Key}}" aria-current="{{eq .Key $.Cur}}" hx-push-url="true">{{.Key}}</a>{{end}}
+</div>
+{{end}}
+
+{{define "state-badge"}}<span class="badge {{stateClass .}}">{{stateLabel .}}</span>{{end}}

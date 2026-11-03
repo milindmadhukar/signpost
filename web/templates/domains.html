@@ -1,0 +1,66 @@
+{{define "content"}}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Domains</h1>
+    <p class="mt-1 text-[13px] text-fg-3">Hosts signpost can put links on. Adding a link on a new host connects it automatically.</p>
+  </div>
+  <form class="flex w-full gap-2 sm:w-auto" hx-post="/ui/domains" hx-target="#domains-table" hx-swap="outerHTML" hx-on::after-request="if (event.detail.successful) this.reset()">
+    <input class="input input-mono sm:w-64" name="host" placeholder="links.example.com" required autocomplete="off" aria-label="Domain to connect" spellcheck="false">
+    <button type="submit" class="btn btn-primary">{{icon "plus"}}Connect</button>
+  </form>
+</div>
+{{template "domains-table" .Data}}
+<div class="mt-4 grid gap-3 md:grid-cols-2">
+  <div class="card card-body">
+    <div class="mb-1 flex items-center gap-2 text-[13px] font-medium">{{icon "info" "icon-sm text-fg-3"}}How the DNS check works</div>
+    <p class="text-[13px] leading-relaxed text-fg-2">signpost reads the records from 1.1.1.1, then proves the round trip by fetching a secret token from <span class="mono">https://host/.well-known/signpost/</span>. Proxied Cloudflare records never show this box's IP, so the fetch is the real proof. Checks run again every 6 hours.</p>
+  </div>
+  <div class="card card-body">
+    <div class="mb-1 flex items-center gap-2 text-[13px] font-medium">{{icon "triangle-alert" "icon-sm text-fg-3"}}Fallbacks take over the whole host</div>
+    <p class="text-[13px] leading-relaxed text-fg-2">A fallback sends every path without a link to a URL, e.g. <span class="mono">https://www.example.com/{path}</span>. Only set one on hosts where nothing else is served.</p>
+  </div>
+</div>
+{{end}}
+
+{{define "domains-table"}}
+<div id="domains-table" class="card" {{if .Polling}}hx-get="/domains" hx-select="#domains-table" hx-target="this" hx-swap="outerHTML" hx-trigger="every 4s"{{end}}>
+  {{if .Domains}}
+  <div class="overflow-x-auto">
+  <table class="table">
+    <thead><tr>
+      <th>Host</th><th>DNS</th><th class="text-right">Links</th>
+      <th class="hidden md:table-cell">Fallback for unknown paths</th>
+      <th class="hidden lg:table-cell">Cert resolver</th>
+      <th class="w-28"><span class="sr-only">Actions</span></th>
+    </tr></thead>
+    <tbody>
+    {{range .Domains}}
+      <tr>
+        <td class="align-top">
+          <a class="font-medium hover:text-accent" href="/links?host={{.Host}}">{{.Host}}</a>
+          {{if .DNSChecked}}<div class="mt-0.5 text-xs text-fg-3">Checked {{agoUnix .DNSChecked}}</div>{{end}}
+        </td>
+        <td class="max-w-xs align-top">
+          <span class="badge {{dnsClass .DNS}}">{{dnsLabel .DNS}}</span>
+          {{if .DNSMsg}}<div class="mt-1 text-xs leading-relaxed text-fg-3">{{titleCase .DNSMsg}}</div>{{end}}
+        </td>
+        <td class="text-right align-top font-medium num">{{.Links}}</td>
+        <td class="hidden align-top md:table-cell"><input class="input input-mono min-w-56" form="dom-{{.Host}}" name="fallback" value="{{.Fallback}}" placeholder="None, other paths stay with the site" aria-label="Fallback for {{.Host}}"></td>
+        <td class="hidden align-top lg:table-cell"><input class="input input-mono w-36" form="dom-{{.Host}}" name="cert_resolver" value="{{.CertResolver}}" placeholder="Default" aria-label="Cert resolver for {{.Host}}"></td>
+        <td class="align-top">
+          <div class="flex items-center justify-end gap-0.5">
+            <form id="dom-{{.Host}}" hx-put="/ui/domains/{{.Host}}" hx-target="#domains-table" hx-swap="outerHTML"><button type="submit" class="btn btn-ghost btn-sm">Save</button></form>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm" title="Check DNS again" aria-label="Check DNS again for {{.Host}}" hx-post="/ui/domains/{{.Host}}/check" hx-target="#domains-table" hx-swap="outerHTML">{{icon "refresh-cw" "icon-sm"}}</button>
+            {{if eq .Links 0}}<button type="button" class="btn btn-ghost btn-icon btn-sm hover:text-danger" title="Remove domain" aria-label="Remove {{.Host}}" hx-delete="/ui/domains/{{.Host}}" hx-target="#domains-table" hx-swap="outerHTML" hx-confirm="Forget {{.Host}}?" data-confirm-label="Remove">{{icon "trash-2" "icon-sm"}}</button>{{end}}
+          </div>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}
+  {{template "empty" dict "Icon" "globe" "Title" "No domains yet" "Body" "Connect one above, or just create a link and its host shows up here."}}
+  {{end}}
+</div>
+{{end}}

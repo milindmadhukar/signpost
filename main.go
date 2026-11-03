@@ -71,10 +71,14 @@ const usage = `signpost: short links and redirects for any domain behind Traefik
 
 server
   signpost serve
+  signpost demo-seed [-db dev.db]          fill an empty database with demo data
 
 client (talks to SIGNPOST_URL with SIGNPOST_TOKEN)
   signpost ls
-  signpost add <host/path> <target> [-301|-302|-307|-308] [-drop-query] [-note text] [-force]
+  signpost add <host/path> <target> [-301|-302|-307|-308] [-drop-query] [-note text] [-tags a,b] [-password pw] [-force]
+  signpost add -short <host> <target>      generate a 7-character slug
+  signpost import <file.csv|-> [-dry-run] [-force] [-skip-check]
+  signpost export > links.csv
   signpost set <host/path|id> <target>
   signpost rm  <host/path|id>
   signpost clicks <host/path|id>
@@ -96,6 +100,8 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		err = serve(loadConfig())
+	case "demo-seed":
+		err = demoSeed(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:

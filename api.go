@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // whoFrom says who is asking: "token" for the CLI, the Authelia user for a
@@ -47,7 +48,11 @@ func (a *App) adminRoutes() http.Handler {
 	in := http.NewServeMux()
 	// JSON API, for the CLI.
 	in.HandleFunc("GET /api/links", a.apiLinks)
+	in.HandleFunc("GET /api/links.csv", a.exportCSV)
 	in.HandleFunc("POST /api/links", a.apiCreateLink)
+	in.HandleFunc("POST /api/links/bulk", a.apiBulkCreate)
+	in.HandleFunc("POST /api/links/bulk-action", a.apiBulkAction)
+	in.HandleFunc("GET /api/links/{id}/stats", a.apiStats)
 	in.HandleFunc("PATCH /api/links/{id}", a.apiUpdateLink)
 	in.HandleFunc("DELETE /api/links/{id}", a.apiDeleteLink)
 	in.HandleFunc("GET /api/links/{id}/clicks", a.apiClicks)
@@ -64,16 +69,29 @@ func (a *App) adminRoutes() http.Handler {
 	// Unauthenticated on purpose: Traefik's HTTP provider polls this over the
 	// docker network. It holds hostnames and paths, nothing secret. Targets
 	// are not in it.
+	// Traefik polls every few seconds; the ETag lets an unchanged config
+	// answer 304 with no body.
 	mux.HandleFunc("GET /traefik.yml", func(w http.ResponseWriter, r *http.Request) {
-		a.mu.RLock()
-		body := a.rendered
-		a.mu.RUnlock()
+		t := a.table.Load()
 		w.Header().Set("Content-Type", "application/yaml")
-		w.Write(body)
+		w.Header().Set("ETag", t.etag)
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Header.Get("If-None-Match") == t.etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Write(t.rendered)
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	static, _ := fs.Sub(webFS, "web/static")
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	files := http.StripPrefix("/static/", http.FileServerFS(static))
+	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Fonts never change; app.css is cache-busted by ?v= per build.
+		if strings.HasPrefix(r.URL.Path, "/static/fonts/") || r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		files.ServeHTTP(w, r)
+	}))
 	return mux
 }
 
@@ -87,7 +105,8 @@ func apiFail(w http.ResponseWriter, err error) {
 }
 
 func (a *App) apiLinks(w http.ResponseWriter, r *http.Request) {
-	links, err := a.store.Links()
+	q := r.URL.Query()
+	links, err := a.store.FindLinks(LinkFilter{Q: q.Get("q"), Host: q.Get("host"), State: q.Get("state"), Tag: q.Get("tag")})
 	if err != nil {
 		apiFail(w, err)
 		return
@@ -206,4 +225,81 @@ func (a *App) apiDeleteDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *App) exportCSV(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	links, err := a.store.FindLinks(LinkFilter{Q: q.Get("q"), Host: q.Get("host"), State: q.Get("state"), Tag: q.Get("tag")})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="signpost-links.csv"`)
+	writeCSV(w, links)
+}
+
+type bulkRequest struct {
+	bulkOpts
+	Links []linkInput `json:"links"`
+	CSV   string      `json:"csv"` // alternative to links
+}
+
+func (a *App) apiBulkCreate(w http.ResponseWriter, r *http.Request) {
+	var req bulkRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<20)).Decode(&req); err != nil {
+		jsonErr(w, 400, "bad json")
+		return
+	}
+	ins := req.Links
+	if req.CSV != "" {
+		var err error
+		if ins, err = parseCSV(strings.NewReader(req.CSV)); err != nil {
+			apiFail(w, err)
+			return
+		}
+	}
+	rows, n, err := a.BulkCreate(r.Context(), ins, req.bulkOpts)
+	if err != nil {
+		apiFail(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"created": n, "dry_run": req.DryRun, "rows": rows})
+}
+
+func (a *App) apiBulkAction(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs    []int64 `json:"ids"`
+		Action string  `json:"action"`
+		Arg    string  `json:"arg"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonErr(w, 400, "bad json")
+		return
+	}
+	n, err := a.BulkAction(req.IDs, req.Action, req.Arg)
+	if err != nil {
+		apiFail(w, err)
+		return
+	}
+	writeJSON(w, map[string]int{"changed": n})
+}
+
+func (a *App) apiStats(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		jsonErr(w, 400, "bad id")
+		return
+	}
+	if _, err := a.store.Link(id); err != nil {
+		apiFail(w, err)
+		return
+	}
+	rg := parseRange(r.URL.Query().Get("range"))
+	st, err := a.store.Stats(statsQuery{LinkID: id, Range: rg, Now: time.Now()})
+	if err != nil {
+		apiFail(w, err)
+		return
+	}
+	writeJSON(w, st)
 }

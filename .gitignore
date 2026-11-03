@@ -2,3 +2,4 @@ signpost
 *.db*
 .env
 web/static/app.css
+web/static/app.js

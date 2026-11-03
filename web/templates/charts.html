@@ -1,0 +1,168 @@
+{{/* The analytics panel shared by /analytics and each link's page.
+     Expects: Stats, Chart, Heat, Lists, Global (bool). */}}
+{{define "stats-panel"}}
+{{$s := .Stats}}
+<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  {{template "stat-tile" dict "Label" "Clicks" "Value" $s.Clicks "Prev" $s.PrevClicks "Icon" "mouse-pointer-click" "Range" $s.Range.Key}}
+  {{template "stat-tile" dict "Label" "Unique visitors" "Value" $s.Visitors "Prev" $s.PrevVisitors "Icon" "users" "Range" $s.Range.Key}}
+  <div class="card p-4">
+    <div class="flex items-center justify-between"><span class="stat-label">Top referrer</span>{{icon "arrow-up-right" "icon-sm text-fg-3"}}</div>
+    {{with index .Lists "Referrers"}}{{with index . 0}}
+      <div class="mt-2 truncate text-[17px] font-semibold tracking-tight" title="{{.Label}}">{{.Label}}</div>
+      <div class="mt-1.5 text-xs text-fg-3">{{.Pct}} of clicks</div>
+    {{end}}{{else}}<div class="mt-2 text-[17px] font-semibold text-fg-3">None yet</div><div class="mt-1.5 text-xs text-fg-3">&nbsp;</div>{{end}}
+  </div>
+  <div class="card p-4">
+    <div class="flex items-center justify-between"><span class="stat-label">Bots filtered</span>{{icon "shield" "icon-sm text-fg-3"}}</div>
+    <div class="stat-value num">{{thousands $s.Bots}}</div>
+    <div class="mt-1.5 truncate text-xs text-fg-3" title="Crawlers and link previews are recorded but not counted">Previews and crawlers</div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Clicks over time</div>
+      <div class="text-xs text-fg-3">{{$s.Range.Label}}, by {{if eq $s.Range.Key "24h"}}hour{{else}}day{{end}}, in your time zone</div>
+    </div>
+    <div class="text-right"><div class="text-[17px] font-semibold num">{{thousands $s.Clicks}}</div></div>
+  </div>
+  <div class="card-body">{{template "bar-chart" .Chart}}</div>
+</div>
+
+<div class="mt-3 grid gap-3 {{if .Global}}lg:grid-cols-[1.35fr_1fr]{{else}}lg:grid-cols-[1.35fr_1fr]{{end}}">
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">When people click</div><div class="text-xs text-fg-3">Day of week by hour of day</div></div>
+    </div>
+    <div class="card-body">{{template "heatmap" .Heat}}</div>
+  </div>
+  {{if .Global}}
+    {{template "barlist-card" dict "Title" "Top links" "Rows" (index .Lists "Links")}}
+  {{else}}
+    {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
+  {{end}}
+</div>
+
+{{if .Global}}
+<div class="mt-3 grid gap-3 md:grid-cols-2">
+  {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
+  {{template "barlist-card" dict "Title" "Countries" "Rows" (index .Lists "Countries")}}
+</div>
+<div class="mt-3 grid gap-3 md:grid-cols-3">
+  {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
+  {{template "barlist-card" dict "Title" "Browsers" "Rows" (index .Lists "Browsers")}}
+  {{template "barlist-card" dict "Title" "Operating systems" "Rows" (index .Lists "OS")}}
+</div>
+{{else}}
+<div class="mt-3 grid gap-3 md:grid-cols-2">
+  {{template "barlist-card" dict "Title" "Countries" "Rows" (index .Lists "Countries")}}
+  {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
+  {{template "barlist-card" dict "Title" "Browsers" "Rows" (index .Lists "Browsers")}}
+  {{template "barlist-card" dict "Title" "Operating systems" "Rows" (index .Lists "OS")}}
+</div>
+{{end}}
+
+<div class="card mt-3 overflow-hidden">
+  <div class="card-head"><div class="card-title">Recent clicks</div><span class="text-xs text-fg-3">Latest 12, bots excluded</span></div>
+  {{if $s.Recent}}
+  <div class="overflow-x-auto">
+  <table class="table">
+    <thead><tr><th>Time</th>{{if .Global}}<th>Link</th>{{end}}<th>Referrer</th><th>Country</th><th class="hidden md:table-cell">Device</th><th class="hidden md:table-cell">Browser</th></tr></thead>
+    <tbody>
+    {{range $s.Recent}}
+      <tr>
+        <td class="whitespace-nowrap text-fg-2 num">{{agoUnix .At}}</td>
+        {{if $.Global}}<td><a class="font-medium text-fg hover:text-accent" href="/links/{{.LinkID}}">{{.LinkURL}}</a></td>{{end}}
+        <td class="max-w-56 truncate text-fg-2" title="{{.Referrer}}">{{or .RefHost "Direct / none"}}</td>
+        <td class="text-fg-2">{{countryName .Country}}</td>
+        <td class="hidden text-fg-2 md:table-cell">{{titleCase .Device}}</td>
+        <td class="hidden text-fg-2 md:table-cell">{{.Browser}}{{if .OS}} <span class="text-fg-3">· {{.OS}}</span>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{else}}{{template "empty" dict "Icon" "mouse-pointer-click" "Title" "No clicks yet" "Body" "Clicks show up here a second or so after they happen."}}{{end}}
+</div>
+{{end}}
+
+{{define "stat-tile"}}
+<div class="card p-4">
+  <div class="flex items-center justify-between"><span class="stat-label">{{.Label}}</span>{{icon .Icon "icon-sm text-fg-3"}}</div>
+  <div class="stat-value num">{{thousands .Value}}</div>
+  <div class="mt-1.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs text-fg-3">
+    {{$d := delta .Value .Prev}}{{$sign := deltaSign .Value .Prev}}
+    {{if $d}}
+      <span class="delta {{if eq $sign 1}}delta-up{{else if eq $sign -1}}delta-down{{else}}delta-flat{{end}}">
+        {{if eq $sign 1}}{{icon "arrow-up-right" "icon-sm"}}{{else if eq $sign -1}}{{icon "arrow-down-right" "icon-sm"}}{{end}}{{$d}}</span>
+      <span class="truncate">vs prior {{.Range}}</span>
+    {{else}}<span>No change</span>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{/* Column chart in HTML: bars grow from one baseline, 4px rounded tops,
+     hairline gridlines, a tooltip per bar on hover. */}}
+{{define "bar-chart"}}
+<div class="flex gap-3">
+  <div class="relative h-52 w-8 shrink-0 text-right text-[11px] text-fg-3 num" aria-hidden="true">
+    {{range .Ticks}}<span class="absolute right-0 translate-y-1/2 leading-none" style="bottom: {{pct .Pos}}">{{.V}}</span>{{end}}
+  </div>
+  <div class="relative min-w-0 flex-1">
+    <div class="relative h-52">
+      {{range .Ticks}}<div class="absolute inset-x-0 border-t {{if eq .Pos 0.0}}border-line-strong{{else}}border-grid{{end}}" style="bottom: {{pct .Pos}}"></div>{{end}}
+      <div class="absolute inset-0 flex items-end {{if gt (len .Bars) 40}}gap-px{{else}}gap-0.5{{end}}" role="img" aria-label="Clicks per period">
+        {{range .Bars}}
+        <div class="chart-bar">
+          <i style="height: {{pct .H}}"></i>
+          <span class="tip"><span class="font-semibold num">{{thousands .N}}</span> <span class="opacity-70">· {{.Label}}</span></span>
+        </div>
+        {{end}}
+      </div>
+      {{if .Empty}}<div class="absolute inset-0 flex items-center justify-center text-[13px] text-fg-3">No clicks in this period</div>{{end}}
+    </div>
+    <div class="relative mt-2 h-4 text-[11px] text-fg-3" aria-hidden="true">
+      {{range .XLabels}}<span class="absolute -translate-x-1/2 whitespace-nowrap" style="left: {{pct .Pos}}">{{.Text}}</span>{{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "heatmap"}}
+<div class="overflow-x-auto">
+<div class="min-w-[420px]">
+  <div class="grid grid-cols-[32px_repeat(24,minmax(0,1fr))] gap-[3px]">
+    {{range .}}
+      <div class="flex items-center text-[11px] text-fg-3">{{.Day}}</div>
+      {{range .Cells}}<div class="heat heat-{{.Level}} group relative" title="{{.Label}}"></div>{{end}}
+    {{end}}
+    <div></div>
+    {{range $h := list "00" "" "" "" "" "" "06" "" "" "" "" "" "12" "" "" "" "" "" "18" "" "" "" "" "23"}}<div class="pt-1 text-center text-[10px] text-fg-3">{{$h}}</div>{{end}}
+  </div>
+  <div class="mt-3 flex items-center justify-end gap-1.5 text-[11px] text-fg-3">
+    <span>Fewer</span>
+    <span class="heat heat-0 size-3"></span><span class="heat heat-1 size-3"></span><span class="heat heat-2 size-3"></span><span class="heat heat-3 size-3"></span><span class="heat heat-4 size-3"></span><span class="heat heat-5 size-3"></span>
+    <span>More</span>
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "barlist-card"}}
+<div class="card">
+  <div class="card-head"><div class="card-title">{{.Title}}</div><span class="text-xs text-fg-3">Clicks</span></div>
+  <div class="p-2">
+    {{range .Rows}}
+    <div class="barlist-row">
+      <span class="fill" style="width: {{pct .W}}"></span>
+      {{if .Href}}<a href="{{.Href}}" class="relative min-w-0 truncate {{if $.Mono}}mono{{end}} hover:text-accent" title="{{.Label}}">{{.Label}}</a>
+      {{else}}<span class="relative min-w-0 truncate {{if $.Mono}}mono{{end}}" title="{{.Label}}">{{.Label}}</span>{{end}}
+      <span class="relative flex shrink-0 items-baseline gap-2 num"><span class="font-medium">{{thousands .N}}</span><span class="w-9 text-right text-xs text-fg-3">{{.Pct}}</span></span>
+    </div>
+    {{else}}
+    <div class="px-2 py-8 text-center text-[13px] text-fg-3">Nothing yet</div>
+    {{end}}
+  </div>
+</div>
+{{end}}
