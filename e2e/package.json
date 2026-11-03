@@ -1,0 +1,12 @@
+{
+  "name": "signpost-e2e",
+  "private": true,
+  "description": "End-to-end tests for the signpost dashboard, in real browsers",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^24.0.0"
+  }
+}
