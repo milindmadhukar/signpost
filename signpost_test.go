@@ -633,3 +633,17 @@ func TestPWAFiles(t *testing.T) {
 		t.Fatalf("sw.js: %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Header().Get("Cache-Control"))
 	}
 }
+
+func TestTitleCase(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                               "",
+		"mobile":                         "Mobile",
+		"answered 404 by something else": "Answered 404 by something else",
+		"milind.dev/ade already exists":  "milind.dev/ade already exists",
+		"https://x.com/a is taken":       "https://x.com/a is taken",
+	} {
+		if got := titleCase(in); got != want {
+			t.Errorf("titleCase(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
