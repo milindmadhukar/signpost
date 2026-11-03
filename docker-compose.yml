@@ -1,4 +1,5 @@
-# signpost on limitless (~/docker/signpost).
+# signpost as deployed on limitless (~/docker/signpost). For a generic setup,
+# see docs/self-hosting.md.
 #
 # Traefik learns the routes by polling http://signpost:8081/traefik.yml, which
 # needs these two flags on the Traefik container (~/docker/traefik), once:

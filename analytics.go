@@ -281,8 +281,15 @@ func or(s, def string) string {
 	return s
 }
 
+// titleCase capitalises the first letter of a message, unless the message
+// opens with a host or URL ("milind.dev/ade already exists"), which keeps
+// its case.
 func titleCase(s string) string {
 	if s == "" {
+		return s
+	}
+	first, _, _ := strings.Cut(s, " ")
+	if strings.ContainsAny(first, "./:") {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]

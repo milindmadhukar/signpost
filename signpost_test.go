@@ -521,7 +521,11 @@ func TestUIRequiresHeaderAndAuth(t *testing.T) {
 	}
 	// Every page renders.
 	mustCreate(t, a, Link{Host: "milind.dev", Path: "/ade", Target: "https://example.com"})
-	for _, p := range []string{"/links", "/links/1", "/analytics", "/domains", "/import", "/settings", "/links?q=ade&state=live"} {
+	// Link pages with an expiry, past and future, once broke the header.
+	past, soon := time.Now().Add(-time.Hour).Unix(), time.Now().Add(time.Hour).Unix()
+	mustCreate(t, a, Link{Host: "milind.dev", Path: "/gone", Target: "https://example.com", ExpiresAt: &past})
+	mustCreate(t, a, Link{Host: "milind.dev", Path: "/soon", Target: "https://example.com", ExpiresAt: &soon})
+	for _, p := range []string{"/links", "/links/1", "/links/2", "/links/3", "/analytics", "/domains", "/import", "/settings", "/links?q=ade&state=live"} {
 		req := httptest.NewRequest("GET", p, nil)
 		req.Header.Set("Remote-User", "milind")
 		w := httptest.NewRecorder()
@@ -627,5 +631,19 @@ func TestPWAFiles(t *testing.T) {
 	w = get("/sw.js")
 	if w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/javascript") || w.Header().Get("Cache-Control") != "no-cache" {
 		t.Fatalf("sw.js: %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Header().Get("Cache-Control"))
+	}
+}
+
+func TestTitleCase(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                               "",
+		"mobile":                         "Mobile",
+		"answered 404 by something else": "Answered 404 by something else",
+		"milind.dev/ade already exists":  "milind.dev/ade already exists",
+		"https://x.com/a is taken":       "https://x.com/a is taken",
+	} {
+		if got := titleCase(in); got != want {
+			t.Errorf("titleCase(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
