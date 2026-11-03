@@ -2,7 +2,8 @@ FROM golang:1.27-alpine AS build
 # Tailwind's standalone CLI scans the templates and writes the one stylesheet,
 # so the image needs no node and the page needs no CDN.
 ARG TAILWIND_VERSION=v4.1.11
-RUN wget -qO /usr/local/bin/tailwindcss \
+RUN apk add --no-cache libstdc++ libgcc \
+ && wget -qO /usr/local/bin/tailwindcss \
       https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64-musl \
  && chmod +x /usr/local/bin/tailwindcss
 WORKDIR /src
