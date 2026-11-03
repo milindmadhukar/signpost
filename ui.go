@@ -676,6 +676,7 @@ func (a *App) uiSaveDomain(w http.ResponseWriter, r *http.Request) {
 
 type importView struct {
 	CSV       string
+	CommitCSV string // the previewed rows with generated slugs filled in, so the commit creates exactly what was shown
 	Rows      []bulkRow
 	Counts    map[string]int
 	Committed bool
@@ -713,6 +714,9 @@ func (a *App) uiImport(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		v.Err = err.Error()
+	}
+	if !commit {
+		v.CommitCSV = rowsCSV(v.Rows)
 	}
 	v.Counts = map[string]int{}
 	for _, row := range v.Rows {

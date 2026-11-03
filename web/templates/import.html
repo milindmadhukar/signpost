@@ -70,7 +70,7 @@ events.example.com/*,https://luma.com/{path},301">{{$v.CSV}}</textarea>
       {{if gt $n 0}}
       <form hx-post="/ui/import" hx-target="#import-result" hx-swap="innerHTML" hx-disabled-elt="find button">
         <input type="hidden" name="mode" value="commit">
-        <textarea name="csv" hidden>{{.CSV}}</textarea>
+        <textarea name="csv" hidden>{{.CommitCSV}}</textarea>
         {{if .SkipProbe}}<input type="hidden" name="skip_probe" value="1">{{end}}
         {{if .Force}}<input type="hidden" name="force" value="1">{{end}}
         <button type="submit" class="btn btn-primary btn-sm">{{icon "check" "icon-sm"}}Create {{plural $n "link"}}</button>
@@ -96,7 +96,7 @@ events.example.com/*,https://luma.com/{path},301">{{$v.CSV}}</textarea>
           {{else if eq .Result "conflict"}}<span class="badge b-warn">Conflict</span>
           {{else if eq .Result "duplicate"}}<span class="badge b-off">Duplicate</span>
           {{else}}<span class="badge b-bad">Invalid</span>{{end}}
-          {{if .Msg}}<div class="mt-1 text-xs text-fg-3">{{.Msg}}</div>{{end}}
+          {{if .Msg}}<div class="mt-1 text-xs text-fg-3">{{titleCase .Msg}}</div>{{end}}
         </td>
       </tr>
     {{end}}

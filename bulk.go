@@ -109,3 +109,27 @@ func writeCSV(w io.Writer, links []Link) error {
 	cw.Flush()
 	return cw.Error()
 }
+
+// rowsCSV writes previewed rows back out as import CSV, with each row's
+// resolved host and path, so generated slugs survive from preview to commit.
+func rowsCSV(rows []bulkRow) string {
+	var b strings.Builder
+	cw := csv.NewWriter(&b)
+	cw.Write([]string{"source", "target", "status", "note", "tags"})
+	for _, r := range rows {
+		in := r.Input
+		src := in.Host + in.Path
+		if in.Path == "*" {
+			src = in.Host + "/*"
+		} else if in.Path == "" {
+			src = in.Host + "/"
+		}
+		status := ""
+		if in.Status != 0 {
+			status = strconv.Itoa(in.Status)
+		}
+		cw.Write([]string{src, in.Target, status, in.Note, strings.Join(in.Tags, ",")})
+	}
+	cw.Flush()
+	return b.String()
+}
