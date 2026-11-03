@@ -1,0 +1,4 @@
+.git
+signpost
+*.db*
+.env
