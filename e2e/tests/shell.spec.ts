@@ -53,22 +53,40 @@ test("no page scrolls sideways", async ({ page }) => {
   }
 });
 
-test("a request that cannot reach the server says so, with a way out", async ({ page }) => {
-  await page.goto("/links");
-  // What an expired Authelia session looks like from htmx: the request is
-  // redirected cross-origin and fails outright.
-  await page.route("**/ui/**", (route) => route.abort("failed"));
-  await page.locator("#links-table tbody summary[aria-label='More actions']").first().click();
-  await page.locator("#links-table tbody .menu-list").first().getByRole("button", { name: "Check again" }).click();
-  await expect(toast(page)).toContainText("Could not reach signpost");
-  await expect(toast(page).getByRole("button", { name: "Reload" })).toBeVisible();
+test.describe("failed requests", () => {
+  // page.route() cannot see requests from a page a service worker controls
+  // (in WebKit at least), so the worker is kept out of this one test. Every
+  // other test runs with it, which is what shows it leaves htmx alone.
+  test.use({ serviceWorkers: "block" });
+
+  test("a request that cannot reach the server says so, with a way out", async ({ page }) => {
+    await page.goto("/links");
+    // What an expired Authelia session looks like from htmx: the request is
+    // redirected cross-origin and fails outright.
+    await page.route("**/ui/**", (route) => route.abort("failed"));
+    await page.locator("#links-table tbody summary[aria-label='More actions']").first().click();
+    await page.locator("#links-table tbody .menu-list").first().getByRole("button", { name: "Check again" }).click();
+    await expect(toast(page)).toContainText("Could not reach signpost");
+    await expect(toast(page).getByRole("button", { name: "Reload" })).toBeVisible();
+  });
 });
 
 test("every page renders without errors", async ({ page }) => {
   const errors = watchErrors(page);
   // /links/8 and /links/10 are the demo's expired and expiring links, whose
   // header once stopped the page rendering halfway.
-  for (const url of ["/links", "/links/1", "/links/8", "/links/10", "/analytics", "/analytics?range=24h", "/analytics?range=90d&link=2", "/domains", "/import", "/settings"]) {
+  for (const url of [
+    "/links",
+    "/links/1",
+    "/links/8",
+    "/links/10",
+    "/analytics",
+    "/analytics?range=24h",
+    "/analytics?range=90d&link=2",
+    "/domains",
+    "/import",
+    "/settings",
+  ]) {
     const res = await page.goto(url);
     expect(res?.status(), url).toBe(200);
     if (url.startsWith("/links/")) await expect(page.locator("#settings-card"), url).toBeVisible();
