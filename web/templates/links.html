@@ -165,11 +165,18 @@
     <div>
       <label class="label" for="f-host">Short link</label>
       <div class="flex">
-        <input class="input input-mono w-[46%] rounded-r-none border-r-0" id="f-host" name="host" list="hosts" placeholder="milind.dev" value="{{.Host}}" required autocomplete="off" spellcheck="false">
+        <div class="relative w-[46%]" data-host-picker>
+          <input class="input input-mono rounded-r-none border-r-0 {{if .Hosts}}pr-8{{end}}" id="f-host" name="host" placeholder="milind.dev" value="{{.Host}}" required autocomplete="off" spellcheck="false">
+          {{if .Hosts}}
+          <button type="button" class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-fg-3 hover:text-fg" data-host-toggle aria-label="Choose an existing domain" aria-controls="host-options" aria-expanded="false">{{icon "chevron-down" "icon-sm"}}</button>
+          <div id="host-options" class="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-lg" hidden>
+            {{range .Hosts}}<button type="button" class="menu-item input-mono w-full" data-host-choice="{{.}}">{{.}}</button>{{end}}
+          </div>
+          {{end}}
+        </div>
         <span class="flex items-center border-y border-line bg-subtle px-2 text-fg-3">/</span>
         <div class="relative flex-1">{{template "path-input" .Path}}</div>
       </div>
-      <datalist id="hosts">{{range .Hosts}}<option value="{{.}}"></option>{{end}}</datalist>
       <div class="mt-1.5 flex items-start justify-between gap-3">
         <p class="hint mt-0">Empty path: a random 7-character slug. <span class="mono">*</span> sends every path on the host.</p>
         <button type="button" class="btn btn-sm shrink-0" hx-disabled-elt="this" hx-get="/ui/slug" hx-include="#f-host" hx-target="#f-path" hx-swap="outerHTML">{{icon "wand-sparkles" "icon-sm"}}Generate</button>

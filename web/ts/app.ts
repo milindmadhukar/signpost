@@ -93,6 +93,16 @@ function closeMenus(except?: EventTarget | null): void {
   for (const d of $$<HTMLDetailsElement>("details.menu[open]")) {
     if (!(except instanceof Node && d.contains(except))) d.open = false;
   }
+  const picker = $("[data-host-picker]");
+  if (!(except instanceof Node && picker?.contains(except))) setHostOptions(false);
+}
+
+function setHostOptions(open: boolean): void {
+  const options = $<HTMLElement>("#host-options");
+  const toggle = $<HTMLButtonElement>("[data-host-toggle]");
+  if (!options || !toggle) return;
+  options.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
 }
 
 document.addEventListener("click", (e) => {
@@ -122,6 +132,7 @@ document.addEventListener("click", (e) => {
   if (open?.dataset.open) {
     const dlg = document.getElementById(open.dataset.open);
     if (dlg instanceof HTMLDialogElement) {
+      if (dlg.id === "new-link") setHostOptions(false);
       dlg.showModal();
       $<HTMLInputElement>("[autofocus], input:not([type=hidden])", dlg)?.focus();
     }
@@ -131,6 +142,26 @@ document.addEventListener("click", (e) => {
   const close = target.closest("[data-close]");
   if (close) {
     close.closest("dialog")?.close();
+    return;
+  }
+
+  const hostToggle = target.closest<HTMLButtonElement>("[data-host-toggle]");
+  if (hostToggle) {
+    const wasOpen = $<HTMLElement>("#host-options")?.hidden === false;
+    closeMenus(hostToggle);
+    setHostOptions(!wasOpen);
+    return;
+  }
+
+  const hostChoice = target.closest<HTMLButtonElement>("[data-host-choice]");
+  if (hostChoice) {
+    const input = $<HTMLInputElement>("#f-host");
+    if (input) {
+      input.value = hostChoice.dataset.hostChoice ?? "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+    }
+    setHostOptions(false);
     return;
   }
 
@@ -183,6 +214,9 @@ document.addEventListener("change", (e) => {
   }
   if (t.matches("#links-table input[type=checkbox]")) syncSelection();
 });
+document.addEventListener("input", (e) => {
+  if (e.target instanceof HTMLInputElement && e.target.id === "f-host") setHostOptions(false);
+});
 document.addEventListener("htmx:afterSwap", syncSelection);
 
 // ---- Drawer: close after a link is created ----
@@ -198,6 +232,13 @@ document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const typing = e.target instanceof Element ? e.target.closest<HTMLElement>("input, textarea, select, [contenteditable]") : null;
   if (e.key === "Escape") {
+    const hostOptions = $<HTMLElement>("#host-options");
+    if (hostOptions && !hostOptions.hidden) {
+      e.preventDefault();
+      setHostOptions(false);
+      $<HTMLButtonElement>("[data-host-toggle]")?.focus();
+      return;
+    }
     closeMenus();
     if (typing instanceof HTMLInputElement && typing.name === "q") typing.blur();
     document.body.removeAttribute("data-nav-open");
