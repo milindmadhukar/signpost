@@ -30,7 +30,9 @@ func (a *App) whoFrom(r *http.Request) string {
 func (a *App) authed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.whoFrom(r) == "" {
-			if strings.HasPrefix(r.URL.Path, "/api/") {
+			if r.Header.Get("Authorization") != "" {
+				jsonErr(w, http.StatusUnauthorized, "bad token")
+			} else if strings.HasPrefix(r.URL.Path, "/api/") {
 				jsonErr(w, http.StatusUnauthorized, "sign in through Authelia or send a bearer token")
 			} else {
 				http.Error(w, "sign in through Authelia", http.StatusUnauthorized)
