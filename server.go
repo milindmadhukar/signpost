@@ -7,9 +7,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -33,6 +31,7 @@ type App struct {
 	mu        sync.RWMutex
 	links     map[string]Link   // host + path -> link
 	fallbacks map[string]string // host -> fallback template
+	tokens    map[string]string // host -> DNS-check token
 	rendered  []byte
 
 	clicks chan clickEvent
@@ -61,6 +60,11 @@ func serve(cfg Config) error {
 		return err
 	}
 	go app.clickWriter()
+	go func() {
+		// Let Traefik poll the verify routes before the first sweep.
+		time.Sleep(15 * time.Second)
+		app.dnsLoop()
+	}()
 
 	pub := &http.Server{Addr: cfg.Listen, Handler: http.HandlerFunc(app.redirect), ReadHeaderTimeout: 10 * time.Second}
 	adm := &http.Server{Addr: cfg.AdminListen, Handler: app.adminRoutes(), ReadHeaderTimeout: 10 * time.Second}
@@ -112,14 +116,15 @@ func (a *App) reload() error {
 	for _, l := range links {
 		table[l.Host+l.Path] = l
 	}
-	fb := map[string]string{}
+	fb, tok := map[string]string{}, map[string]string{}
 	for _, d := range domains {
+		tok[d.Host] = d.Token
 		if d.Fallback != "" {
 			fb[d.Host] = d.Fallback
 		}
 	}
 	a.mu.Lock()
-	a.links, a.fallbacks, a.rendered = table, fb, rendered
+	a.links, a.fallbacks, a.tokens, a.rendered = table, fb, tok, rendered
 	a.mu.Unlock()
 	if a.cfg.TraefikFile != "" {
 		if err := WriteAtomic(a.cfg.TraefikFile, rendered); err != nil {
@@ -159,6 +164,18 @@ func withQuery(target, rawQuery string) string {
 
 func (a *App) redirect(w http.ResponseWriter, r *http.Request) {
 	host := requestHost(r)
+	if tok, ok := strings.CutPrefix(r.URL.Path, wellKnown); ok {
+		a.mu.RLock()
+		want := a.tokens[host]
+		a.mu.RUnlock()
+		if want == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(want)) != 1 {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write([]byte("signpost:" + want))
+		return
+	}
 	a.mu.RLock()
 	l, ok := a.links[host+r.URL.Path]
 	if !ok && len(r.URL.Path) > 1 && strings.HasSuffix(r.URL.Path, "/") {
@@ -217,61 +234,6 @@ func trunc(s string, n int) string {
 	return s
 }
 
-// ---- admin ----
-
-func (a *App) authed(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h := r.Header.Get("Authorization"); h != "" {
-			tok, ok := strings.CutPrefix(h, "Bearer ")
-			if ok && a.cfg.Token != "" && subtle.ConstantTimeCompare([]byte(tok), []byte(a.cfg.Token)) == 1 {
-				next.ServeHTTP(w, r)
-				return
-			}
-			jsonErr(w, http.StatusUnauthorized, "bad token")
-			return
-		}
-		if a.cfg.TrustRemoteUser && r.Header.Get("Remote-User") != "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		jsonErr(w, http.StatusUnauthorized, "sign in through Authelia or send a bearer token")
-	})
-}
-
-func (a *App) adminRoutes() http.Handler {
-	api := http.NewServeMux()
-	api.HandleFunc("GET /api/links", a.apiLinks)
-	api.HandleFunc("POST /api/links", a.apiCreateLink)
-	api.HandleFunc("GET /api/links/{id}", a.apiLink)
-	api.HandleFunc("PATCH /api/links/{id}", a.apiUpdateLink)
-	api.HandleFunc("DELETE /api/links/{id}", a.apiDeleteLink)
-	api.HandleFunc("GET /api/links/{id}/clicks", a.apiClicks)
-	api.HandleFunc("POST /api/links/{id}/check", a.apiCheck)
-	api.HandleFunc("GET /api/domains", a.apiDomains)
-	api.HandleFunc("PUT /api/domains/{host}", a.apiPutDomain)
-	api.HandleFunc("DELETE /api/domains/{host}", a.apiDeleteDomain)
-	api.HandleFunc("GET /api/whoami", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]string{"user": r.Header.Get("Remote-User"), "admin_host": a.cfg.AdminHost, "default_resolver": a.cfg.CertResolver})
-	})
-
-	mux := http.NewServeMux()
-	mux.Handle("/api/", a.authed(api))
-	// Unauthenticated on purpose: Traefik's HTTP provider polls this over the
-	// docker network. It holds hostnames and paths, nothing secret. Targets
-	// are not in it.
-	mux.HandleFunc("GET /traefik.yml", func(w http.ResponseWriter, r *http.Request) {
-		a.mu.RLock()
-		body := a.rendered
-		a.mu.RUnlock()
-		w.Header().Set("Content-Type", "application/yaml")
-		w.Write(body)
-	})
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
-	static, _ := fs.Sub(webFS, "web")
-	mux.Handle("/", a.authed(http.FileServerFS(static)))
-	return mux
-}
-
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
@@ -285,266 +247,4 @@ func jsonErr(w http.ResponseWriter, code int, msg string) {
 
 func pathID(r *http.Request) (int64, error) {
 	return strconv.ParseInt(r.PathValue("id"), 10, 64)
-}
-
-func (a *App) apiLinks(w http.ResponseWriter, r *http.Request) {
-	links, err := a.store.Links()
-	if err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, links)
-}
-
-func (a *App) apiLink(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		jsonErr(w, 400, "bad id")
-		return
-	}
-	l, err := a.store.Link(id)
-	if err != nil {
-		jsonErr(w, 404, err.Error())
-		return
-	}
-	writeJSON(w, l)
-}
-
-type linkInput struct {
-	Host      string `json:"host"`
-	Path      string `json:"path"`
-	Target    string `json:"target"`
-	Status    int    `json:"status"`
-	KeepQuery *bool  `json:"keep_query"`
-	Note      string `json:"note"`
-	Force     bool   `json:"force"`
-}
-
-func validTarget(t string) error {
-	u, err := url.Parse(strings.ReplaceAll(t, "{path}", "x"))
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-		return errors.New("target must be an absolute http(s) URL")
-	}
-	return nil
-}
-
-func validStatus(s int) bool { return s == 301 || s == 302 || s == 307 || s == 308 }
-
-func (a *App) apiCreateLink(w http.ResponseWriter, r *http.Request) {
-	var in linkInput
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		jsonErr(w, 400, "bad json")
-		return
-	}
-	l := Link{
-		Host:   strings.ToLower(strings.TrimSpace(in.Host)),
-		Path:   strings.TrimSpace(in.Path),
-		Target: strings.TrimSpace(in.Target),
-		Status: in.Status,
-		Note:   in.Note,
-	}
-	if l.Path == "/*" {
-		l.Path = "*"
-	}
-	if l.Path != "*" && !strings.HasPrefix(l.Path, "/") {
-		l.Path = "/" + l.Path
-	}
-	if l.Path != "*" && len(l.Path) > 1 {
-		l.Path = strings.TrimSuffix(l.Path, "/")
-	}
-	l.KeepQuery = in.KeepQuery == nil || *in.KeepQuery
-	if l.Status == 0 {
-		l.Status = 302
-	}
-	switch {
-	case !hostRe.MatchString(l.Host):
-		jsonErr(w, 400, "host must be a plain hostname like milind.dev")
-		return
-	case l.Host == a.cfg.AdminHost:
-		jsonErr(w, 400, "that host is signpost's own admin UI")
-		return
-	case l.Path != "*" && (l.Path == "/" || !pathRe.MatchString(l.Path)):
-		jsonErr(w, 400, "path may use letters, digits and . _ ~ - / only, and cannot be the root")
-		return
-	case !validStatus(l.Status):
-		jsonErr(w, 400, "status must be 301, 302, 307 or 308")
-		return
-	}
-	if err := validTarget(l.Target); err != nil {
-		jsonErr(w, 400, err.Error())
-		return
-	}
-	if !in.Force {
-		if msg := a.conflict(r.Context(), l); msg != "" {
-			jsonErr(w, 409, msg+" (pass force to take it anyway)")
-			return
-		}
-	}
-	l, err := a.store.CreateLink(l, a.cfg.CertResolver)
-	if err != nil {
-		jsonErr(w, 409, err.Error())
-		return
-	}
-	if err := a.reload(); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	go a.verify(l.ID)
-	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, l)
-}
-
-func (a *App) apiUpdateLink(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		jsonErr(w, 400, "bad id")
-		return
-	}
-	l, err := a.store.Link(id)
-	if err != nil {
-		jsonErr(w, 404, err.Error())
-		return
-	}
-	var in struct {
-		Target    *string `json:"target"`
-		Status    *int    `json:"status"`
-		KeepQuery *bool   `json:"keep_query"`
-		Note      *string `json:"note"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		jsonErr(w, 400, "bad json")
-		return
-	}
-	if in.Target != nil {
-		if err := validTarget(*in.Target); err != nil {
-			jsonErr(w, 400, err.Error())
-			return
-		}
-		l.Target = strings.TrimSpace(*in.Target)
-	}
-	if in.Status != nil {
-		if !validStatus(*in.Status) {
-			jsonErr(w, 400, "status must be 301, 302, 307 or 308")
-			return
-		}
-		l.Status = *in.Status
-	}
-	if in.KeepQuery != nil {
-		l.KeepQuery = *in.KeepQuery
-	}
-	if in.Note != nil {
-		l.Note = *in.Note
-	}
-	if l, err = a.store.UpdateLink(l); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	if err := a.reload(); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, l)
-}
-
-func (a *App) apiDeleteLink(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		jsonErr(w, 400, "bad id")
-		return
-	}
-	if err := a.store.DeleteLink(id); err != nil {
-		jsonErr(w, 404, err.Error())
-		return
-	}
-	if err := a.reload(); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (a *App) apiClicks(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		jsonErr(w, 400, "bad id")
-		return
-	}
-	c, err := a.store.Clicks(id, 500)
-	if err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, c)
-}
-
-func (a *App) apiCheck(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		jsonErr(w, 400, "bad id")
-		return
-	}
-	if _, err := a.store.Link(id); err != nil {
-		jsonErr(w, 404, err.Error())
-		return
-	}
-	a.store.SetCheck(id, "pending", "")
-	go a.verify(id)
-	w.WriteHeader(http.StatusAccepted)
-}
-
-func (a *App) apiDomains(w http.ResponseWriter, r *http.Request) {
-	d, err := a.store.Domains()
-	if err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, d)
-}
-
-func (a *App) apiPutDomain(w http.ResponseWriter, r *http.Request) {
-	host := strings.ToLower(r.PathValue("host"))
-	if !hostRe.MatchString(host) || host == a.cfg.AdminHost {
-		jsonErr(w, 400, "bad host")
-		return
-	}
-	var d Domain
-	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
-		jsonErr(w, 400, "bad json")
-		return
-	}
-	d.Host = host
-	if d.Fallback != "" {
-		if err := validTarget(d.Fallback); err != nil {
-			jsonErr(w, 400, "fallback: "+err.Error())
-			return
-		}
-	}
-	if d.CertResolver == "" {
-		d.CertResolver = a.cfg.CertResolver
-	}
-	if err := a.store.PutDomain(d); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	if err := a.reload(); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, d)
-}
-
-func (a *App) apiDeleteDomain(w http.ResponseWriter, r *http.Request) {
-	if err := a.store.DeleteDomain(strings.ToLower(r.PathValue("host"))); err != nil {
-		code := 409
-		if errors.Is(err, ErrNotFound) {
-			code = 404
-		}
-		jsonErr(w, code, err.Error())
-		return
-	}
-	if err := a.reload(); err != nil {
-		jsonErr(w, 500, err.Error())
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }

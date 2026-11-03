@@ -21,7 +21,7 @@ services:
     restart: always
     environment:
       - SIGNPOST_TOKEN=${SIGNPOST_TOKEN}
-      - SIGNPOST_ADMIN_HOST=signpost.milind.dev
+      - SIGNPOST_ADMIN_HOST=links.milind.dev
       # Only safe because the UI router below runs Authelia, which sets
       # Remote-User. The bearer-token router cannot be used to forge it: any
       # request carrying Authorization is judged on the token alone.
@@ -32,20 +32,24 @@ services:
       # Probe links through Traefik directly too, so "DNS does not point here"
       # can be told apart from "Traefik is not routing it".
       - SIGNPOST_PROBE_ADDR=traefik-reverse-proxy-1:443
+      # This box's public addresses. The DNS check uses them to tell "points
+      # straight here" from "points somewhere else".
+      - SIGNPOST_PUBLIC_IPS=167.233.247.169,2a01:4f8:1c16:e66e::1
     volumes:
+      # SQLite (links, domains, clicks) lives here as /data/signpost.db.
       - data:/data
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=reverse_proxy"
       # UI and API for browsers, behind Authelia.
-      - "traefik.http.routers.signpost.rule=Host(`signpost.milind.dev`)"
+      - "traefik.http.routers.signpost.rule=Host(`links.milind.dev`)"
       - "traefik.http.routers.signpost.entrypoints=websecure"
       - "traefik.http.routers.signpost.tls.certresolver=milindresolver"
       - "traefik.http.routers.signpost.middlewares=authelia@docker"
       - "traefik.http.routers.signpost.service=signpost-admin"
       # API for the CLI: skips Authelia only when a bearer token is sent, and
       # signpost then checks that token itself.
-      - "traefik.http.routers.signpost-api.rule=Host(`signpost.milind.dev`) && PathPrefix(`/api`) && HeaderRegexp(`Authorization`, `^Bearer .+`)"
+      - "traefik.http.routers.signpost-api.rule=Host(`links.milind.dev`) && PathPrefix(`/api`) && HeaderRegexp(`Authorization`, `^Bearer .+`)"
       - "traefik.http.routers.signpost-api.priority=100"
       - "traefik.http.routers.signpost-api.entrypoints=websecure"
       - "traefik.http.routers.signpost-api.tls.certresolver=milindresolver"

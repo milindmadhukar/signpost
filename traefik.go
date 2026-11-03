@@ -77,10 +77,15 @@ func Render(cfg Config, domains []Domain, links []Link) ([]byte, error) {
 		}
 	}
 	for _, d := range domains {
+		// The DNS check fetches /.well-known/signpost/<token> over the public
+		// internet; this route is what lets it land here on hosts that
+		// otherwise belong to a site.
+		name := cfg.ServiceName + "-verify-" + strings.ReplaceAll(d.Host, ".", "-")
+		tc.HTTP.Routers[name] = router(d.Host, fmt.Sprintf("Host(`%s`) && PathPrefix(`%s`)", d.Host, wellKnown), prioLink+1)
 		if d.Fallback == "" {
 			continue
 		}
-		name := cfg.ServiceName + "-fallback-" + strings.ReplaceAll(d.Host, ".", "-")
+		name = cfg.ServiceName + "-fallback-" + strings.ReplaceAll(d.Host, ".", "-")
 		tc.HTTP.Routers[name] = router(d.Host, fmt.Sprintf("Host(`%s`)", d.Host), prioFallback)
 	}
 

@@ -22,6 +22,13 @@ type Domain struct {
 	Fallback  string `json:"fallback"`
 	CreatedAt int64  `json:"created_at"`
 	Links     int    `json:"links"`
+	// DNS is what the last domain check found: pending, ok, proxied (fine,
+	// through Cloudflare), elsewhere, missing or error. DNSMsg says why.
+	DNS        string `json:"dns"`
+	DNSMsg     string `json:"dns_msg"`
+	DNSChecked int64  `json:"dns_checked_at"`
+	// Token names the /.well-known/signpost/<token> path the check fetches.
+	Token string `json:"-"`
 }
 
 type Link struct {
@@ -70,7 +77,11 @@ CREATE TABLE IF NOT EXISTS domains (
   host          TEXT PRIMARY KEY,
   cert_resolver TEXT NOT NULL DEFAULT '',
   fallback      TEXT NOT NULL DEFAULT '',
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  token         TEXT NOT NULL DEFAULT (lower(hex(randomblob(12)))),
+  dns_state     TEXT NOT NULL DEFAULT 'pending',
+  dns_msg       TEXT NOT NULL DEFAULT '',
+  dns_checked_at INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS links (
   id         INTEGER PRIMARY KEY,
@@ -251,7 +262,7 @@ func (s *Store) Clicks(id int64, limit int) ([]Click, error) {
 }
 
 func (s *Store) Domains() ([]Domain, error) {
-	rows, err := s.db.Query(`SELECT d.host, d.cert_resolver, d.fallback, d.created_at, COUNT(l.id)
+	rows, err := s.db.Query(`SELECT d.host, d.cert_resolver, d.fallback, d.created_at, COUNT(l.id), d.dns_state, d.dns_msg, d.dns_checked_at, d.token
 		FROM domains d LEFT JOIN links l ON l.host = d.host GROUP BY d.host ORDER BY d.host`)
 	if err != nil {
 		return nil, err
@@ -260,7 +271,7 @@ func (s *Store) Domains() ([]Domain, error) {
 	out := []Domain{}
 	for rows.Next() {
 		var d Domain
-		if err := rows.Scan(&d.Host, &d.CertResolver, &d.Fallback, &d.CreatedAt, &d.Links); err != nil {
+		if err := rows.Scan(&d.Host, &d.CertResolver, &d.Fallback, &d.CreatedAt, &d.Links, &d.DNS, &d.DNSMsg, &d.DNSChecked, &d.Token); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -275,6 +286,32 @@ func (s *Store) PutDomain(d Domain) error {
 		ON CONFLICT(host) DO UPDATE SET cert_resolver = excluded.cert_resolver, fallback = excluded.fallback`,
 		d.Host, d.CertResolver, d.Fallback, time.Now().Unix())
 	return err
+}
+
+// HasDomain lets callers spot a brand-new host, so its first DNS check runs.
+func (s *Store) HasDomain(host string) bool {
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM domains WHERE host = ?`, host).Scan(&n)
+	return n > 0
+}
+
+func (s *Store) Domain(host string) (Domain, error) {
+	ds, err := s.Domains()
+	if err != nil {
+		return Domain{}, err
+	}
+	for _, d := range ds {
+		if d.Host == host {
+			return d, nil
+		}
+	}
+	return Domain{}, ErrNotFound
+}
+
+func (s *Store) SetDNS(host, state, msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db.Exec(`UPDATE domains SET dns_state = ?, dns_msg = ?, dns_checked_at = ? WHERE host = ?`, state, msg, time.Now().Unix(), host)
 }
 
 func (s *Store) DeleteDomain(host string) error {

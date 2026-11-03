@@ -9,6 +9,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/netip"
 	"os"
 	"strings"
 )
@@ -26,6 +28,7 @@ type Config struct {
 	CertResolver    string
 	TraefikFile     string
 	ProbeAddr       string
+	PublicIPs       []netip.Addr // this box's public addresses, for the DNS check
 }
 
 func env(k, def string) string {
@@ -36,7 +39,19 @@ func env(k, def string) string {
 }
 
 func loadConfig() Config {
+	var ips []netip.Addr
+	for _, s := range strings.Split(os.Getenv("SIGNPOST_PUBLIC_IPS"), ",") {
+		if s = strings.TrimSpace(s); s == "" {
+			continue
+		}
+		ip, err := netip.ParseAddr(s)
+		if err != nil {
+			log.Fatalf("SIGNPOST_PUBLIC_IPS: %v", err)
+		}
+		ips = append(ips, ip)
+	}
 	return Config{
+		PublicIPs:       ips,
 		DB:              env("SIGNPOST_DB", "signpost.db"),
 		Listen:          env("SIGNPOST_LISTEN", ":8080"),
 		AdminListen:     env("SIGNPOST_ADMIN_LISTEN", ":8081"),

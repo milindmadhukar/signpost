@@ -69,7 +69,7 @@ func (a *App) probe(c *http.Client, l Link) error {
 	req.Header.Set("X-Signpost-Probe", a.probeID)
 	resp, err := c.Do(req)
 	if err != nil {
-		return err
+		return shortErr(err)
 	}
 	resp.Body.Close()
 	if got := resp.Header.Get("X-Signpost-Link"); got != strconv.FormatInt(l.ID, 10) {

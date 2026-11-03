@@ -53,12 +53,18 @@ address does not reach this box) or `error`.
   e.g. `https://www.plusxhub.com/{path}`)
 - 301/302/307/308, query strings passed through by default
 - Clicks with referrer, country (from Cloudflare's `CF-IPCountry`) and UA
-- Web UI (behind Authelia) and a CLI in the same binary
+- DNS checks when a domain is connected: records are read from 1.1.1.1 and
+  classified (straight here, proxied by Cloudflare, elsewhere, missing), then
+  proven with a real round trip to `https://<host>/.well-known/signpost/<token>`,
+  since a proxied record never shows this box's IP. Re-run every 6 hours.
+- Dashboard in Go templates + htmx + Tailwind (compiled at build time, no CDN),
+  behind Authelia, and a CLI in the same binary
+- Everything in one SQLite file, `/data/signpost.db`
 
 ## CLI
 
 ```
-export SIGNPOST_URL=https://signpost.milind.dev SIGNPOST_TOKEN=...
+export SIGNPOST_URL=https://links.milind.dev SIGNPOST_TOKEN=...
 signpost ls
 signpost add plusxhub.com/ade https://amsterdamdanceevent.com/plusxhub -note "ADE"
 signpost add 'events.plusxhub.com/*' https://luma.com/qwo2votr -301
@@ -83,9 +89,15 @@ signpost domain plusxhub.com -fallback 'https://www.plusxhub.com/{path}'
 | `SIGNPOST_CERT_RESOLVER` | | default resolver for new domains |
 | `SIGNPOST_TRAEFIK_FILE` | | also write the config here (file provider mode) |
 | `SIGNPOST_PROBE_ADDR` | | e.g. `traefik:443`, to probe through Traefik directly |
+| `SIGNPOST_PUBLIC_IPS` | | comma-separated public IPs of the box, for the DNS check |
 
 `/traefik.yml` is unauthenticated so Traefik can poll it over the docker
 network. It holds hostnames and paths only; targets are not in it.
+
+## Developing
+
+`make dev` builds the CSS with the [Tailwind standalone CLI](https://github.com/tailwindlabs/tailwindcss/releases)
+(`TAILWIND=/path/to/tailwindcss` if it is not on PATH) and serves on :8080/:8081.
 
 ## Deploying
 
