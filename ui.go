@@ -596,23 +596,75 @@ func (a *App) uiPassword(w http.ResponseWriter, r *http.Request) {
 // ---- Analytics ----
 
 type analyticsView struct {
-	Stats  *Stats
-	Chart  barChart
-	Heat   []heatRow
-	Lists  map[string][]barListRow
-	Ranges []statRange
-	Links  int
+	Stats    *Stats
+	Chart    barChart
+	Heat     []heatRow
+	Lists    map[string][]barListRow
+	Ranges   []statRange
+	Links    int
+	Selected *Link  // nil: all links
+	Options  []Link // for the link picker
+	PerLink  []perLinkRow
+	LinkID   int64 // kept in the range picker's links; 0 for all links
+	Active   int   // links with at least one click in the range
+}
+
+type perLinkRow struct {
+	linkStat
+	Spark template.HTML
+	Delta string
+	Sign  int
+	Share float64 // percent of all clicks in the range
+	Bar   float64 // bar width, percent of the busiest link, so small shares stay visible
 }
 
 func (a *App) pageAnalytics(w http.ResponseWriter, r *http.Request) {
-	st, chart, heat, lists, err := a.statsBundle(r, 0)
+	v := analyticsView{Ranges: statRanges}
+	v.Options, _ = a.store.Links()
+	v.Links = len(v.Options)
+	var id int64
+	if s := r.URL.Query().Get("link"); s != "" {
+		id, _ = strconv.ParseInt(s, 10, 64)
+		if l, err := a.store.Link(id); err == nil {
+			v.Selected = &l
+			v.LinkID = id
+		} else {
+			id = 0
+		}
+	}
+	st, chart, heat, lists, err := a.statsBundle(r, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	v := analyticsView{Stats: st, Chart: chart, Heat: heat, Lists: lists, Ranges: statRanges}
-	a.store.db.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&v.Links)
-	a.renderPage(w, r, "analytics", "Analytics", v)
+	v.Stats, v.Chart, v.Heat, v.Lists = st, chart, heat, lists
+	if id == 0 {
+		rows, err := a.store.PerLink(statsQuery{Range: st.Range, Now: time.Now(), TZ: tzOf(r)})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		top := 1
+		for _, ls := range rows {
+			top = max(top, ls.Clicks)
+		}
+		for _, ls := range rows {
+			row := perLinkRow{linkStat: ls, Spark: sparkline(ls.Series), Bar: float64(ls.Clicks) / float64(top) * 100}
+			row.Delta, row.Sign = delta(ls.Clicks, ls.PrevClicks)
+			if st.Clicks > 0 {
+				row.Share = float64(ls.Clicks) / float64(st.Clicks) * 100
+			}
+			if ls.Clicks > 0 {
+				v.Active++
+			}
+			v.PerLink = append(v.PerLink, row)
+		}
+	}
+	title := "Analytics"
+	if v.Selected != nil {
+		title = "Analytics · " + v.Selected.URL()
+	}
+	a.renderPage(w, r, "analytics", title, v)
 }
 
 // ---- Domains ----

@@ -17,7 +17,7 @@
 
 {{define "range-picker"}}
 <div class="seg" role="group" aria-label="Time range">
-  {{range .Ranges}}<a href="{{$.Base}}?range={{.Key}}" aria-current="{{eq .Key $.Cur}}" hx-push-url="true">{{.Key}}</a>{{end}}
+  {{range .Ranges}}<a href="{{$.Base}}?range={{.Key}}{{with $.Link}}&amp;link={{.}}{{end}}" aria-current="{{eq .Key $.Cur}}">{{.Key}}</a>{{end}}
 </div>
 {{end}}
 

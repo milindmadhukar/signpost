@@ -102,8 +102,8 @@
             <div class="truncate text-fg-2" title="{{.Target}}">{{.Target}}</div>
             <div class="mt-0.5 text-xs text-fg-3"><span class="mono">{{.Status}}</span> · {{codeName .Status}}{{if not .KeepQuery}} · drops query{{end}}{{with .ExpiresAt}} · expires {{date .}}{{end}}</div>
           </td>
-          <td class="hidden md:table-cell"><div class="flex items-center gap-2">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></div></td>
-          <td class="text-right font-medium num">{{thousands .Clicks}}</td>
+          <td class="hidden md:table-cell"><a href="/links/{{.ID}}" class="flex items-center gap-2 rounded hover:opacity-80" title="Analytics for {{.URL}}">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></a></td>
+          <td class="text-right font-medium num"><a href="/links/{{.ID}}" class="hover:text-accent hover:underline" title="Analytics for {{.URL}}">{{thousands .Clicks}}</a></td>
           <td class="hidden sm:table-cell"><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
           <td class="hidden whitespace-nowrap text-fg-3 xl:table-cell">{{agoUnix .CreatedAt}}</td>
           <td>
@@ -112,7 +112,8 @@
               <details class="menu">
                 <summary class="btn btn-ghost btn-icon btn-sm" aria-label="More actions" title="More">{{icon "ellipsis" "icon-sm"}}</summary>
                 <div class="menu-list">
-                  <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics and settings</a>
+                  <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics</a>
+                  <a class="menu-item" href="/links/{{.ID}}#settings-card">{{icon "settings" "icon-sm"}}Settings</a>
                   <button type="button" class="menu-item sm:hidden" data-copy="{{.Href}}">{{icon "copy" "icon-sm"}}Copy link</button>
                   <a class="menu-item" href="{{.Href}}" target="_blank" rel="noopener" hx-boost="false">{{icon "external-link" "icon-sm"}}Open link</a>
                   <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/check">{{icon "refresh-cw" "icon-sm"}}Check again</button>

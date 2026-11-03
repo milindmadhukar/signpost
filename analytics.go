@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -341,4 +342,89 @@ func countryName(code string) string {
 		return n
 	}
 	return strings.ToUpper(code)
+}
+
+// linkStat is one link's row in the per-link table on the Analytics page.
+type linkStat struct {
+	ID         int64
+	URL        string
+	Target     string
+	State      string
+	Clicks     int
+	Visitors   int
+	PrevClicks int
+	Series     []int // one count per bucket of the range, oldest first
+}
+
+// PerLink returns every link's clicks, visitors and trend for the window,
+// busiest first. Three grouped queries cover all links at once, however
+// many there are.
+func (s *Store) PerLink(q statsQuery) ([]linkStat, error) {
+	from, to, off := q.window()
+	b := int64(q.Range.Bucket / time.Second)
+	links, err := s.Links()
+	if err != nil {
+		return nil, err
+	}
+	byID := map[int64]*linkStat{}
+	out := make([]linkStat, len(links))
+	for i, l := range links {
+		out[i] = linkStat{ID: l.ID, URL: l.URL(), Target: l.Target, State: l.State(), Series: make([]int, q.Range.Span)}
+		byID[l.ID] = &out[i]
+	}
+
+	rows, err := s.db.Query(`SELECT link_id, COUNT(*), COUNT(DISTINCT NULLIF(visitor, '')) FROM clicks
+		WHERE bot = 0 AND at >= ? AND at < ? GROUP BY link_id`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int64
+		var n, v int
+		rows.Scan(&id, &n, &v)
+		if ls := byID[id]; ls != nil {
+			ls.Clicks, ls.Visitors = n, v
+		}
+	}
+	rows.Close()
+
+	rows, err = s.db.Query(`SELECT link_id, COUNT(*) FROM clicks WHERE bot = 0 AND at >= ? AND at < ? GROUP BY link_id`, from-(to-from), from)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id int64
+		var n int
+		rows.Scan(&id, &n)
+		if ls := byID[id]; ls != nil {
+			ls.PrevClicks = n
+		}
+	}
+	rows.Close()
+
+	rows, err = s.db.Query(`SELECT link_id, (at + ?) / ? AS k, COUNT(*) FROM clicks WHERE bot = 0 AND at >= ? AND at < ? GROUP BY link_id, k`,
+		off, b, from, to)
+	if err != nil {
+		return nil, err
+	}
+	first := (from + off) / b
+	for rows.Next() {
+		var id, k int64
+		var n int
+		rows.Scan(&id, &k, &n)
+		if ls := byID[id]; ls != nil {
+			if i := int(k - first); i >= 0 && i < len(ls.Series) {
+				ls.Series[i] = n
+			}
+		}
+	}
+	rows.Close()
+
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Clicks != out[j].Clicks {
+			return out[i].Clicks > out[j].Clicks
+		}
+		return out[i].PrevClicks > out[j].PrevClicks
+	})
+	return out, nil
 }

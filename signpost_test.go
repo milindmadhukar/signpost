@@ -647,3 +647,51 @@ func TestTitleCase(t *testing.T) {
 		}
 	}
 }
+
+func TestPerLinkStats(t *testing.T) {
+	a, _ := newTestApp(t, "milind.dev")
+	ls := mustCreate(t, a,
+		Link{Host: "milind.dev", Path: "/quiet", Target: "https://example.com/q"},
+		Link{Host: "milind.dev", Path: "/busy", Target: "https://example.com/b"},
+	)
+	quiet, busy := ls[0], ls[1]
+	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+	day := int64(86400)
+	a.store.RecordClicks([]clickEvent{
+		{busy.ID, Click{At: now.Unix() - 3600, Visitor: "a"}},
+		{busy.ID, Click{At: now.Unix() - 3500, Visitor: "a"}},
+		{busy.ID, Click{At: now.Unix() - 2*day, Visitor: "b"}},
+		{busy.ID, Click{At: now.Unix() - 3600, Bot: true}},       // not counted
+		{quiet.ID, Click{At: now.Unix() - 10*day, Visitor: "c"}}, // previous period only
+	})
+	rows, err := a.store.PerLink(statsQuery{Range: parseRange("7d"), Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].ID != busy.ID {
+		t.Fatalf("order: %+v", rows)
+	}
+	b, q := rows[0], rows[1]
+	if b.Clicks != 3 || b.Visitors != 2 || b.PrevClicks != 0 || len(b.Series) != 7 || b.Series[6] != 2 || b.Series[4] != 1 {
+		t.Fatalf("busy: %+v", b)
+	}
+	if q.Clicks != 0 || q.PrevClicks != 1 {
+		t.Fatalf("quiet: %+v", q)
+	}
+
+	// The Analytics page renders both views: all links, and one link.
+	h := a.adminRoutes()
+	a.cfg.TrustRemoteUser = true
+	for path, want := range map[string]string{
+		"/analytics": "By link",
+		"/analytics?link=" + strconv.FormatInt(busy.ID, 10) + "&range=7d": "Link settings",
+	} {
+		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Remote-User", "milind")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), want) {
+			t.Errorf("%s: %d, missing %q", path, w.Code, want)
+		}
+	}
+}
