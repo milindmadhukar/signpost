@@ -8,10 +8,12 @@
 
 Keep your site where it is. Put a link on one exact path, and only that path is routed to signpost.
 
-[![CI](https://github.com/milindmadhukar/signpost/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/milindmadhukar/signpost/actions/workflows/docker-publish.yml)
+[![CI](https://github.com/milindmadhukar/signpost/actions/workflows/ci.yml/badge.svg)](https://github.com/milindmadhukar/signpost/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/milindmadhukar/signpost?sort=semver&color=111113)](https://github.com/milindmadhukar/signpost/releases)
 ![Go](https://img.shields.io/github/go-mod/go-version/milindmadhukar/signpost?color=00ADD8)
 ![Traefik v3](https://img.shields.io/badge/Traefik-v3-24A1C1)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-only-111113)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111113)](LICENSE)
 
 [Self-hosting](docs/self-hosting.md) &nbsp;·&nbsp;
 [Configuration](docs/configuration.md) &nbsp;·&nbsp;
@@ -57,8 +59,8 @@ the domains you already have, through the reverse proxy you already run.
   no database read and no lock. About 3 microseconds of work per redirect, and
   30,000 redirects a second on a laptop. [See the numbers.](#performance)
 - **One small binary.** Go, SQLite, server-rendered HTML. A 15 MB static
-  binary in a `FROM scratch` image, one database file, no Node, no CDN, no
-  external services.
+  binary in a `FROM scratch` image for amd64, arm64 and armv7 (so a Raspberry
+  Pi works too), one database file, no Node, no CDN, no external services.
 - **Analytics without tracking.** Clicks, unique visitors, referrers,
   countries, devices and a weekday-by-hour heatmap. No IP address is ever
   stored, and link previews and crawlers are filtered out.
@@ -346,5 +348,29 @@ extension) to see the dashboard.
 `web/icon.svg` and `web/icon-maskable.svg` with `rsvg-convert`; the PNGs are
 committed.
 
-Continuous integration runs `go vet`, `go test -race` and `tsc` on every pull
-request, and publishes `ghcr.io/milindmadhukar/signpost` from `main`.
+## Releases
+
+Versions follow [semantic versioning](https://semver.org). Pushing a tag such
+as `v1.2.3` publishes the image for `linux/amd64`, `linux/arm64` and
+`linux/arm/v7`, and a [GitHub release](https://github.com/milindmadhukar/signpost/releases)
+with binaries for Linux, macOS and Windows.
+
+| Image tag | Follows |
+|---|---|
+| `latest` | The newest release |
+| `1.2.3` | Exactly that release |
+| `1.2`, `1` | The newest patch or minor release in that line (`1` from 1.0 on) |
+| `edge` | Every commit to `main`, before it is released |
+
+CI runs `go vet`, `go test -race` and `tsc` and builds the image for every
+platform on every push and pull request.
+
+To cut a release:
+
+```console
+$ git tag -s v1.2.3 -m "signpost v1.2.3" && git push origin v1.2.3
+```
+
+## License
+
+[MIT](LICENSE)

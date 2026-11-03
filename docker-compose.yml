@@ -1,19 +1,12 @@
-# signpost as deployed on limitless (~/docker/signpost). For a generic setup,
-# see docs/self-hosting.md.
+# Example deployment next to an existing Traefik v3. Replace links.example.com,
+# the cert resolver, the entrypoint and the network with your own, then see
+# docs/self-hosting.md for the rest (authentication, checks, backups).
 #
-# Traefik learns the routes by polling http://signpost:8081/traefik.yml, which
-# needs these two flags on the Traefik container (~/docker/traefik), once:
+# Traefik learns the redirect routes by polling signpost, which needs these two
+# flags on the Traefik container, once:
 #
 #   - "--providers.http.endpoint=http://signpost:8081/traefik.yml"
 #   - "--providers.http.pollInterval=5s"
-#
-# If signpost is down, Traefik keeps the last routes it fetched (tested on
-# v3.7.10). Requests to links then 502 until it is back; nothing else on the
-# box is affected.
-#
-# No-restart alternative: set SIGNPOST_TRAEFIK_FILE=/traefik/signpost.yml and
-# mount ../traefik/traefik-config at /traefik. Traefik does not watch
-# subdirectories, so that means mounting the whole directory read-write.
 
 services:
   signpost:
@@ -22,48 +15,44 @@ services:
     restart: always
     environment:
       - SIGNPOST_TOKEN=${SIGNPOST_TOKEN}
-      - SIGNPOST_ADMIN_HOST=links.milind.dev
-      # Only safe because the UI router below runs Authelia, which sets
-      # Remote-User. The bearer-token router cannot be used to forge it: any
-      # request carrying Authorization is judged on the token alone.
+      - SIGNPOST_ADMIN_HOST=links.example.com
+      # Only safe because the dashboard router below runs forward auth, which
+      # sets Remote-User. The API router cannot be used to forge it: a request
+      # carrying Authorization is judged on the token alone.
       - SIGNPOST_TRUST_REMOTE_USER=true
       - SIGNPOST_UPSTREAM=http://signpost:8080
       - SIGNPOST_ENTRYPOINTS=websecure
-      - SIGNPOST_CERT_RESOLVER=milindresolver
-      # Probe links through Traefik directly too, so "DNS does not point here"
-      # can be told apart from "Traefik is not routing it".
-      - SIGNPOST_PROBE_ADDR=traefik-reverse-proxy-1:443
-      # This box's public addresses. The DNS check uses them to tell "points
-      # straight here" from "points somewhere else".
-      - SIGNPOST_PUBLIC_IPS=167.233.247.169,2a01:4f8:1c16:e66e::1
+      - SIGNPOST_CERT_RESOLVER=letsencrypt
+      # Optional, for sharper link and DNS checks:
+      # - SIGNPOST_PROBE_ADDR=traefik:443
+      # - SIGNPOST_PUBLIC_IPS=203.0.113.10,2001:db8::1
     volumes:
       # SQLite (links, domains, clicks) lives here as /data/signpost.db.
       - data:/data
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=reverse_proxy"
-      # UI and API for browsers, behind Authelia.
-      - "traefik.http.routers.signpost.rule=Host(`links.milind.dev`)"
-      - "traefik.http.routers.signpost.entrypoints=websecure"
-      - "traefik.http.routers.signpost.tls.certresolver=milindresolver"
-      - "traefik.http.routers.signpost.middlewares=authelia@docker"
-      - "traefik.http.routers.signpost.service=signpost-admin"
-      # API for the CLI: skips Authelia only when a bearer token is sent, and
-      # signpost then checks that token itself.
-      - "traefik.http.routers.signpost-api.rule=Host(`links.milind.dev`) && PathPrefix(`/api`) && HeaderRegexp(`Authorization`, `^Bearer .+`)"
-      - "traefik.http.routers.signpost-api.priority=100"
-      - "traefik.http.routers.signpost-api.entrypoints=websecure"
-      - "traefik.http.routers.signpost-api.tls.certresolver=milindresolver"
-      - "traefik.http.routers.signpost-api.service=signpost-admin"
-      - "traefik.http.services.signpost-admin.loadbalancer.server.port=8081"
-      # The redirect routes themselves come from signpost's own config, not labels.
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.services.signpost-admin.loadbalancer.server.port=8081
+      # Dashboard, behind forward auth.
+      - traefik.http.routers.signpost.rule=Host(`links.example.com`)
+      - traefik.http.routers.signpost.entrypoints=websecure
+      - traefik.http.routers.signpost.tls.certresolver=letsencrypt
+      - traefik.http.routers.signpost.middlewares=authelia@docker
+      - traefik.http.routers.signpost.service=signpost-admin
+      # API for the CLI: skips forward auth only when a bearer token is sent,
+      # and signpost then checks that token itself.
+      - traefik.http.routers.signpost-api.rule=Host(`links.example.com`) && PathPrefix(`/api`) && HeaderRegexp(`Authorization`, `^Bearer .+`)
+      - traefik.http.routers.signpost-api.priority=100
+      - traefik.http.routers.signpost-api.entrypoints=websecure
+      - traefik.http.routers.signpost-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.signpost-api.service=signpost-admin
+      # The redirect routes come from signpost itself, not from labels.
     networks:
-      - reverse_proxy
+      - proxy
 
 volumes:
   data:
 
 networks:
-  reverse_proxy:
-    name: reverse_proxy
+  proxy:
     external: true

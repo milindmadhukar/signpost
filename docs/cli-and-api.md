@@ -17,8 +17,9 @@ $ export SIGNPOST_URL=https://links.example.com
 $ export SIGNPOST_TOKEN=<the value of SIGNPOST_TOKEN on the server>
 ```
 
-Get the binary from the container (`docker cp signpost:/signpost .`), or
-build it with `go build .`. Flags can go before or after the arguments.
+Download the binary for your OS from the
+[Releases page](https://github.com/milindmadhukar/signpost/releases), or
+build it with `go build .`. `signpost version` says which one you have. Flags can go before or after the arguments.
 
 ### Links
 
