@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -574,5 +575,57 @@ func BenchmarkClickWrites(b *testing.B) {
 				st.RecordClicks(evs)
 			}
 		})
+	}
+}
+
+// The install files are served without signpost's own auth (Authelia guards
+// them at Traefik), from the root, with types browsers accept.
+func TestPWAFiles(t *testing.T) {
+	a, _ := newTestApp(t)
+	h := a.adminRoutes()
+	get := func(path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		return w
+	}
+
+	w := get("/manifest.webmanifest")
+	if w.Code != 200 || w.Header().Get("Content-Type") != "application/manifest+json" {
+		t.Fatalf("manifest: %d %q", w.Code, w.Header().Get("Content-Type"))
+	}
+	var m struct {
+		StartURL    string `json:"start_url"`
+		Scope       string `json:"scope"`
+		ShareTarget struct {
+			Action string `json:"action"`
+		} `json:"share_target"`
+		Icons []struct {
+			Src     string `json:"src"`
+			Purpose string `json:"purpose"`
+		} `json:"icons"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+		t.Fatalf("manifest JSON: %v", err)
+	}
+	if m.StartURL != "/links" || m.Scope != "/" || m.ShareTarget.Action != "/links" {
+		t.Fatalf("manifest: %+v", m)
+	}
+	// Every icon the manifest names must be served.
+	for _, ic := range m.Icons {
+		if c := get(ic.Src).Code; c != 200 {
+			t.Errorf("icon %s: %d", ic.Src, c)
+		}
+	}
+	if c := get("/static/offline.html").Code; c != 200 {
+		t.Errorf("offline page: %d", c)
+	}
+
+	// sw.js is an esbuild output, absent until `make js` has run.
+	if _, err := webFS.ReadFile("web/static/sw.js"); err != nil {
+		t.Skip("web/static/sw.js not built")
+	}
+	w = get("/sw.js")
+	if w.Code != 200 || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/javascript") || w.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("sw.js: %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Header().Get("Cache-Control"))
 	}
 }

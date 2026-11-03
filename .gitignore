@@ -3,3 +3,4 @@ signpost
 .env
 web/static/app.css
 web/static/app.js
+web/static/sw.js

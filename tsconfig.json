@@ -9,5 +9,6 @@
     "isolatedModules": false,
     "skipLibCheck": true
   },
-  "include": ["web/ts/**/*.ts"]
+  "include": ["web/ts/**/*.ts"],
+  "exclude": ["web/ts/sw.ts"]
 }

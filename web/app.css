@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "./templates";
 @source "./ts";
+@source "./static/offline.html";
 @source "../ui.go";
 @source "../charts.go";
 

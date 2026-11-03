@@ -26,6 +26,7 @@ jobs:
         with:
           node-version: 22
       - run: npx --yes -p typescript@5 tsc -p tsconfig.json
+      - run: npx --yes -p typescript@5 tsc -p tsconfig.sw.json
 
   build:
     needs: check

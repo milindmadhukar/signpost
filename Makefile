@@ -6,10 +6,21 @@ css:
 
 js:
 	$(ESBUILD) web/ts/app.ts --bundle --minify --target=es2022 --outfile=web/static/app.js
+	$(ESBUILD) web/ts/sw.ts --bundle --minify --target=es2022 --outfile=web/static/sw.js
+
+# App icons, rendered from web/icon.svg and web/icon-maskable.svg. The PNGs are
+# committed, since the Docker build has no rasteriser; rerun after editing the SVGs.
+icons:
+	cp web/icon.svg web/static/icons/icon.svg
+	rsvg-convert -w 192 -h 192 web/icon.svg -o web/static/icons/icon-192.png
+	rsvg-convert -w 512 -h 512 web/icon.svg -o web/static/icons/icon-512.png
+	rsvg-convert -w 512 -h 512 web/icon-maskable.svg -o web/static/icons/icon-maskable-512.png
+	rsvg-convert -w 180 -h 180 web/icon-maskable.svg -o web/static/icons/apple-touch-icon.png
 
 # Type-check the client code. esbuild strips types without checking them.
 check-ts:
 	bunx -p typescript@5 tsc -p tsconfig.json
+	bunx -p typescript@5 tsc -p tsconfig.sw.json
 
 build: css js
 	go build -o signpost .
@@ -25,4 +36,4 @@ demo:
 dev: build
 	SIGNPOST_DB=dev.db SIGNPOST_TOKEN=dev SIGNPOST_TRUST_REMOTE_USER=true ./signpost serve
 
-.PHONY: css js check-ts build test demo dev
+.PHONY: css js icons check-ts build test demo dev
