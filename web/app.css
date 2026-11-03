@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "./templates";
 @source "./ts";
+@source "./static/offline.html";
 @source "../ui.go";
 @source "../charts.go";
 
@@ -219,6 +220,8 @@
   dialog { @apply m-0 max-h-none max-w-none border-0 bg-transparent p-0 text-fg; }
   dialog::backdrop { background: rgb(9 9 11 / 0.45); backdrop-filter: blur(1px); }
   .drawer[open] { @apply fixed inset-y-0 left-auto right-0 flex h-dvh w-full max-w-[460px] flex-col border-l border-line bg-surface shadow-2xl; animation: drawer-in 0.18s ease-out; }
+  /* Installed on a notched phone, keep the drawer's header and buttons clear of the status bar and home indicator. */
+  .drawer[open] { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
   .modal[open] { @apply fixed inset-0 m-auto h-fit w-[calc(100%-2rem)] max-w-sm rounded-xl border border-line bg-surface shadow-2xl; animation: fade-in 0.12s ease-out; }
 
   /* Row menu: a <details> that floats */

@@ -26,6 +26,8 @@ function applyTheme(pref: ThemePref): void {
   const dark = pref === "dark" || (pref === "system" && media.matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.themePref = pref;
+  // The installed app's title bar follows the page, not just the OS setting.
+  $<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", dark ? "#09090b" : "#fafafa");
   for (const b of $$("[data-theme-set]")) {
     b.setAttribute("aria-pressed", String(b.dataset.themeSet === pref));
   }
@@ -222,7 +224,12 @@ document.addEventListener("keydown", (e) => {
 // the login page cross-origin and fail. Reload, so the browser follows the
 // redirect and the user can sign in again. ----
 
-document.addEventListener("htmx:sendError", () => location.reload());
+document.addEventListener("htmx:sendError", () => {
+  // Offline, a reload would only swap the page (and any half-filled form)
+  // for the offline page.
+  if (!navigator.onLine) showToast("err", "You're offline. Try again once you're connected.");
+  else location.reload();
+});
 document.addEventListener("htmx:responseError", (e) => {
   const status = e.detail.xhr.status;
   if (status === 401 || status === 403) location.reload();
@@ -231,3 +238,37 @@ document.addEventListener("htmx:responseError", (e) => {
 
 // Keep the viewer's time zone fresh for server-side bucketing.
 document.cookie = `tz=${-new Date().getTimezoneOffset()};path=/;samesite=lax;max-age=31536000`;
+
+// ---- Installed app: service worker, home-screen shortcut, share sheet ----
+
+// The worker is versioned like /static/*, so each build installs afresh.
+if ("serviceWorker" in navigator) {
+  const v = document.documentElement.dataset.version ?? "";
+  navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(v)}`, { scope: "/" }).catch(() => {});
+}
+
+// The manifest's "New link" shortcut opens /links?new=1, and sharing a page
+// to signpost opens /links?title=…&text=…&url=…. Either way, open the new-link
+// drawer, with the shared address as the target. Android tends to put the
+// address in `text`, after the page title, so take the first URL found.
+function openFromLaunch(): void {
+  if (location.pathname !== "/links") return;
+  const q = new URLSearchParams(location.search);
+  const keys = ["new", "url", "text", "title"];
+  if (!keys.some((k) => q.has(k))) return;
+  const shared = ["url", "text", "title"]
+    .map((k) => q.get(k)?.match(/https?:\/\/\S+/)?.[0])
+    .find((u) => u);
+  for (const k of keys) q.delete(k);
+  const rest = q.toString();
+  history.replaceState(history.state, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+
+  $("[data-open=new-link]")?.click();
+  const target = $<HTMLInputElement>("#f-target");
+  if (shared && target) {
+    target.value = shared;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+
+document.addEventListener("DOMContentLoaded", openFromLaunch);

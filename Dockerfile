@@ -17,6 +17,7 @@ RUN go mod download
 COPY . .
 RUN tailwindcss -i web/app.css -o web/static/app.css --minify \
  && esbuild web/ts/app.ts --bundle --minify --target=es2022 --outfile=web/static/app.js \
+ && esbuild web/ts/sw.ts --bundle --minify --target=es2022 --outfile=web/static/sw.js \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /signpost . \
  && mkdir -p /data && chown 1000:1000 /data
 

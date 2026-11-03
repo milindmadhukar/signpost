@@ -83,6 +83,7 @@ func (a *App) adminRoutes() http.Handler {
 		w.Write(t.rendered)
 	})
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
+	a.pwaRoutes(mux)
 	static, _ := fs.Sub(webFS, "web/static")
 	files := http.StripPrefix("/static/", http.FileServerFS(static))
 	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#fafafa">
+<title>Offline · signpost</title>
+<script>
+  // Same pre-paint theme pick as layout.html.
+  (function () {
+    var p = localStorage.getItem("theme") || "system";
+    var d = p === "dark" || (p === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = d ? "dark" : "light";
+    document.querySelector('meta[name="theme-color"]').content = d ? "#09090b" : "#fafafa";
+  })();
+</script>
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+<!-- Unversioned on purpose: offline, the service worker answers with the
+     cached app.css?v=<build>. -->
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<main class="flex min-h-dvh items-center justify-center px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
+  <div class="flex max-w-sm flex-col items-center text-center">
+    <span class="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-fg">
+      <svg class="icon icon-lg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 13v8"/><path d="M12 3v3"/><path d="M2.354 10.354a1.207 1.207 0 0 1 0-1.708l2.06-2.06A2 2 0 0 1 5.828 6h12.344a2 2 0 0 1 1.414.586l2.06 2.06a1.207 1.207 0 0 1 0 1.708l-2.06 2.06a2 2 0 0 1-1.414.586H5.828a2 2 0 0 1-1.414-.586z"/></svg>
+    </span>
+    <h1 class="mt-5 text-lg font-semibold">You're offline</h1>
+    <p class="mt-1.5 text-[13px] leading-relaxed text-fg-2">signpost needs a connection to load your links. Your short links keep redirecting while you're away.</p>
+    <button type="button" class="btn btn-primary mt-6" onclick="location.reload()">
+      <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+      Try again
+    </button>
+  </div>
+</main>
+</body>
+</html>
