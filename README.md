@@ -75,6 +75,11 @@ address does not reach this box) or `error`.
   compiled at build time and served from the binary (no CDN): a sidebar,
   a page per link, light/dark/system themes, keyboard shortcuts (`/`, `n`).
   Behind Authelia. A CLI in the same binary.
+- Installable as an app (a PWA): its own window, home-screen shortcuts for
+  a new link, analytics and domains, and a place in the phone's share sheet,
+  so sharing a page to signpost opens a new link with that address filled in.
+  The service worker caches only the static assets; pages always load live,
+  with an offline page when there is no network.
 - Everything in one SQLite file, `/data/signpost.db`, upgraded in place
 
 ## Performance
@@ -140,6 +145,9 @@ and the TypeScript with [esbuild's standalone binary](https://www.npmjs.com/pack
 serves on :8080/:8081. `make demo` first fills an empty `dev.db` with links
 and 90 days of clicks. `make test` runs vet and the tests; `make check-ts`
 type-checks the client code with tsc (CI runs both).
+`make icons` re-renders the app icons in `web/static/icons/` from
+`web/icon.svg` and `web/icon-maskable.svg` with `rsvg-convert`; the PNGs are
+committed.
 
 ## Deploying
 
