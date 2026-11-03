@@ -1,0 +1,224 @@
+{{define "content"}}{{$v := .Data}}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Links</h1>
+    <p class="mt-1 text-[13px] text-fg-3">Short links and redirects, each routed through Traefik on its exact path.</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <a class="btn" href="/export.csv{{with $v.Filter.Query}}?{{.}}{{end}}" hx-boost="false" download>{{icon "download"}}Export</a>
+    <a class="btn" href="/import">{{icon "upload"}}Import</a>
+    <button type="button" class="btn btn-primary" data-open="new-link">{{icon "plus"}}New link<span class="kbd ml-1 border-white/20 bg-white/10 text-primary-fg/70 dark:border-black/10 dark:bg-black/5">N</span></button>
+  </div>
+</div>
+
+<form id="filters" class="mb-3 flex flex-wrap items-center gap-2" role="search"
+      hx-get="/links" hx-target="#links-table" hx-select="#links-table" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="input changed delay:250ms from:find input[name=q], search from:find input[name=q], change from:find select, submit">
+  <div class="relative w-full sm:w-80">
+    {{icon "search" "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3"}}
+    <input class="input pl-8 pr-8" type="search" name="q" value="{{$v.Filter.Q}}" placeholder="Search links, destinations, notes" autocomplete="off" aria-label="Search links">
+    <span class="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">/</span>
+  </div>
+  <select class="input w-auto" name="host" aria-label="Domain">
+    <option value="">All domains</option>
+    {{range $v.Domains}}<option {{if eq .Host $v.Filter.Host}}selected{{end}}>{{.Host}}</option>{{end}}
+  </select>
+  <select class="input w-auto" name="state" aria-label="Status">
+    <option value="">Any status</option>
+    {{range list "live" "pending" "dns" "error" "disabled" "expired"}}<option value="{{.}}" {{if eq . $v.Filter.State}}selected{{end}}>{{stateLabel .}}</option>{{end}}
+    <option value="protected" {{if eq "protected" $v.Filter.State}}selected{{end}}>Password protected</option>
+  </select>
+  {{if $v.Tags}}
+  <select class="input w-auto" name="tag" aria-label="Tag">
+    <option value="">Any tag</option>
+    {{range $v.Tags}}<option {{if eq . $v.Filter.Tag}}selected{{end}}>{{.}}</option>{{end}}
+  </select>
+  {{end}}
+</form>
+
+{{template "links-table" $v}}
+
+<dialog id="new-link" class="drawer" aria-labelledby="new-link-title">
+  {{template "linkform" $v.Form}}
+</dialog>
+{{end}}
+
+{{define "links-table"}}
+<div id="links-table" {{if .OOB}}hx-swap-oob="true"{{end}}
+  {{if .Polling}}hx-get="{{.Self}}" hx-select="#links-table" hx-target="this" hx-swap="outerHTML"
+  hx-trigger="every 4s [!document.querySelector('#links-table input[name=ids]:checked') && !document.querySelector('dialog[open], details.menu[open]')]"{{end}}>
+  {{if .Err}}<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{{.Err}}</div>{{end}}
+  <form id="links-form" class="card" hx-target="#links-table" hx-swap="outerHTML">
+    <div id="bulk-bar" hidden class="sticky top-14 z-10 rounded-t-xl border-b border-line bg-surface md:top-0">
+      <div class="flex flex-wrap items-center gap-2 px-4 py-2">
+        <span id="bulk-count" class="mr-1 text-[13px] font-medium">0 selected</span>
+        <button type="button" class="btn btn-sm" hx-post="/ui/bulk" hx-vals='{"action":"enable"}'>{{icon "circle-play" "icon-sm"}}Enable</button>
+        <button type="button" class="btn btn-sm" hx-post="/ui/bulk" hx-vals='{"action":"disable"}'>{{icon "circle-pause" "icon-sm"}}Disable</button>
+        <details class="menu">
+          <summary class="btn btn-sm">Redirect type{{icon "chevron-down" "icon-sm"}}</summary>
+          <div class="menu-list left-0 right-auto">
+            {{range codes}}<button type="button" class="menu-item" hx-post="/ui/bulk" hx-vals='{"action":"status","arg":"{{.}}"}'><span class="mono w-8">{{.}}</span>{{codeName .}}</button>{{end}}
+          </div>
+        </details>
+        <div class="flex items-center gap-1">
+          <input class="input h-7 w-32 text-xs" name="arg" placeholder="tag" aria-label="Tag to add" autocomplete="off">
+          <button type="button" class="btn btn-sm" hx-post="/ui/bulk" hx-vals='{"action":"tag"}'>{{icon "tag" "icon-sm"}}Add tag</button>
+        </div>
+        <button type="button" class="btn btn-sm text-danger" hx-post="/ui/bulk" hx-vals='{"action":"delete"}'
+          hx-confirm="Delete the selected links? Their click history is deleted with them.">{{icon "trash-2" "icon-sm"}}Delete</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto md:overflow-visible">
+    <table class="table">
+      <thead><tr>
+        <th class="w-10"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></th>
+        <th>Link</th>
+        <th class="hidden lg:table-cell">Destination</th>
+        <th class="hidden md:table-cell">Last 7 days</th>
+        <th class="text-right">Clicks</th>
+        <th>Status</th>
+        <th class="hidden xl:table-cell">Created</th>
+        <th class="w-20"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+      {{range .Rows}}
+        <tr data-row class="cursor-pointer">
+          <td><input type="checkbox" class="check" name="ids" value="{{.ID}}" aria-label="Select {{.URL}}"></td>
+          <td class="max-w-[320px]">
+            <div class="flex min-w-0 items-center gap-1.5">
+              <a href="/links/{{.ID}}" data-row-link class="truncate font-medium text-fg"><span class="text-fg-3">{{.Host}}</span>{{shown .Path}}</a>
+              {{if .Protected}}<span title="Password protected" class="text-fg-3">{{icon "lock" "icon-sm"}}</span>{{end}}
+            </div>
+            {{if or .Note .Tags}}
+            <div class="mt-1 flex min-w-0 items-center gap-1.5">
+              {{range .Tags}}<span class="tag">{{.}}</span>{{end}}
+              {{if .Note}}<span class="truncate text-xs text-fg-3">{{.Note}}</span>{{end}}
+            </div>
+            {{end}}
+            <div class="mt-1 truncate text-xs text-fg-3 lg:hidden">{{icon "arrow-up-right" "icon-sm -mt-px mr-0.5 inline"}}{{.Target}}</div>
+          </td>
+          <td class="hidden max-w-[300px] lg:table-cell">
+            <div class="truncate text-fg-2" title="{{.Target}}">{{.Target}}</div>
+            <div class="mt-0.5 text-xs text-fg-3"><span class="mono">{{.Status}}</span> · {{codeName .Status}}{{if not .KeepQuery}} · drops query{{end}}{{with .ExpiresAt}} · expires {{date .}}{{end}}</div>
+          </td>
+          <td class="hidden md:table-cell"><div class="flex items-center gap-2">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></div></td>
+          <td class="text-right font-medium num">{{thousands .Clicks}}</td>
+          <td><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
+          <td class="hidden whitespace-nowrap text-fg-3 xl:table-cell">{{agoUnix .CreatedAt}}</td>
+          <td>
+            <div class="flex items-center justify-end gap-0.5">
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" data-copy="{{.Href}}" title="Copy link" aria-label="Copy {{.URL}}">{{icon "copy" "icon-sm"}}</button>
+              <details class="menu">
+                <summary class="btn btn-ghost btn-icon btn-sm" aria-label="More actions" title="More">{{icon "ellipsis" "icon-sm"}}</summary>
+                <div class="menu-list">
+                  <a class="menu-item" href="/links/{{.ID}}">{{icon "chart-column" "icon-sm"}}Analytics and settings</a>
+                  <a class="menu-item" href="{{.Href}}" target="_blank" rel="noopener" hx-boost="false">{{icon "external-link" "icon-sm"}}Open link</a>
+                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/check">{{icon "refresh-cw" "icon-sm"}}Check again</button>
+                  <button type="button" class="menu-item" hx-post="/ui/links/{{.ID}}/toggle">{{if .Disabled}}{{icon "circle-play" "icon-sm"}}Enable{{else}}{{icon "circle-pause" "icon-sm"}}Disable{{end}}</button>
+                  <div class="my-1 h-px bg-line"></div>
+                  <button type="button" class="menu-item danger" hx-delete="/ui/links/{{.ID}}"
+                    hx-confirm="Delete {{.URL}}? Its click history is deleted with it.">{{icon "trash-2" "icon-sm"}}Delete</button>
+                </div>
+              </details>
+            </div>
+          </td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    {{if not .Rows}}
+      {{if .Filter.Active}}
+        {{template "empty" dict "Icon" "search" "Title" "No links match" "Body" "Try a different search, or clear the filters."}}
+        <div class="-mt-8 pb-10 text-center"><a class="btn" href="/links">Clear filters</a></div>
+      {{else}}
+        {{template "empty" dict "Icon" "link" "Title" "No links yet" "Body" "Create a short link, or import a CSV of redirects."}}
+        <div class="-mt-8 flex justify-center gap-2 pb-10"><button type="button" class="btn btn-primary" data-open="new-link">{{icon "plus"}}New link</button><a class="btn" href="/import">Import CSV</a></div>
+      {{end}}
+    {{end}}
+  </form>
+  {{if .Rows}}
+  <div class="mt-3 flex items-center justify-between text-xs text-fg-3">
+    <span>{{if .Filter.Active}}{{len .Rows}} of {{thousands .Total}} links · <a class="link" href="/links">Clear filters</a>{{else}}{{plural (len .Rows) "link"}}{{end}}</span>
+    <span class="hidden sm:inline">Press <span class="kbd">/</span> to search, <span class="kbd">N</span> for a new link</span>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "path-input"}}<input class="input input-mono rounded-l-none" id="f-path" name="path" value="{{.}}" placeholder="leave empty to generate" autocomplete="off" spellcheck="false">{{end}}
+
+{{define "linkform"}}
+<form id="linkform" class="flex h-full flex-col" hx-post="/ui/links" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+  <div class="flex items-center justify-between border-b border-line px-5 py-4">
+    <h2 id="new-link-title" class="text-[15px] font-semibold">New link</h2>
+    <button type="button" class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close">{{icon "x"}}</button>
+  </div>
+  <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+    <div>
+      <label class="label" for="f-target">Destination URL</label>
+      <input class="input" id="f-target" name="target" type="url" placeholder="https://example.com/a/very/long/url" value="{{.Target}}" required autofocus>
+      <p class="hint">Use <code class="mono">{path}</code> to pass the visited path along, e.g. <span class="mono">https://luma.com/{path}</span>.</p>
+    </div>
+    <div>
+      <label class="label" for="f-host">Short link</label>
+      <div class="flex">
+        <input class="input input-mono w-[46%] rounded-r-none border-r-0" id="f-host" name="host" list="hosts" placeholder="milind.dev" value="{{.Host}}" required autocomplete="off" spellcheck="false">
+        <span class="flex items-center border-y border-line bg-subtle px-2 text-fg-3">/</span>
+        <div class="relative flex-1">{{template "path-input" .Path}}</div>
+      </div>
+      <datalist id="hosts">{{range .Hosts}}<option value="{{.}}"></option>{{end}}</datalist>
+      <div class="mt-1.5 flex items-start justify-between gap-3">
+        <p class="hint mt-0">Empty path: a random 7-character slug. <span class="mono">*</span> sends every path on the host.</p>
+        <button type="button" class="btn btn-sm shrink-0" hx-disabled-elt="this" hx-get="/ui/slug" hx-include="#f-host" hx-target="#f-path" hx-swap="outerHTML">{{icon "wand-sparkles" "icon-sm"}}Generate</button>
+      </div>
+    </div>
+    <div>
+      <label class="label" for="f-status">Redirect type</label>
+      <select class="input" id="f-status" name="status">
+        {{range $c := codes}}<option value="{{$c}}" {{if eq $c $.Status}}selected{{end}}>{{$c}} · {{codeName $c}}</option>{{end}}
+      </select>
+      <p class="hint">302 is right for most short links: browsers do not cache it, so every click is counted and the destination can change later.</p>
+    </div>
+    <details class="group rounded-lg border border-line" {{if or .Note .Tags .Expires}}open{{end}}>
+      <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-[13px] font-medium">
+        More options {{icon "chevron-down" "icon-sm text-fg-3 transition-transform group-open:rotate-180"}}
+      </summary>
+      <div class="space-y-4 border-t border-line px-3 py-4">
+        <div>
+          <label class="label" for="f-tags">Tags</label>
+          <input class="input" id="f-tags" name="tags" value="{{.Tags}}" placeholder="instagram, launch" autocomplete="off">
+        </div>
+        <div>
+          <label class="label" for="f-note">Note</label>
+          <input class="input" id="f-note" name="note" value="{{.Note}}" placeholder="Where this link is used">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label" for="f-exp">Expires</label>
+            <input class="input" id="f-exp" name="expires_at" type="datetime-local" value="{{.Expires}}">
+          </div>
+          <div>
+            <label class="label" for="f-pw">Password</label>
+            <input class="input" id="f-pw" name="password" type="password" placeholder="None" autocomplete="new-password">
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-[13px] text-fg-2">
+          <input type="checkbox" class="check" name="keep_query" value="1" {{if .KeepQuery}}checked{{end}}>
+          Pass query strings through, like <span class="mono">?utm_source=</span>
+        </label>
+      </div>
+    </details>
+    {{if .Msg}}
+    <div class="rounded-lg border px-3 py-2.5 text-[13px] {{if .Conflict}}border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200{{else}}border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300{{end}}" role="alert">
+      <div class="flex gap-2">{{icon "triangle-alert" "mt-0.5"}}<div class="min-w-0 break-words">{{.Msg}}</div></div>
+      {{if .Conflict}}<div class="mt-2.5 pl-6"><button class="btn btn-sm" type="submit" name="force" value="1">Take the path anyway</button></div>{{end}}
+    </div>
+    {{end}}
+  </div>
+  <div class="flex justify-end gap-2 border-t border-line px-5 py-4">
+    <button type="button" class="btn" data-close>Cancel</button>
+    <button type="submit" class="btn btn-primary">Create link</button>
+  </div>
+</form>
+{{end}}

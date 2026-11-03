@@ -1,0 +1,108 @@
+{{define "content"}}{{$v := .Data}}
+<div class="mb-6">
+  <h1 class="text-[22px] font-semibold leading-tight tracking-tight">Import</h1>
+  <p class="mt-1 text-[13px] text-fg-3">Create many redirects at once from CSV. Every row is checked first; nothing is created until you confirm.</p>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+  <form id="import-form" class="card" hx-post="/ui/import" hx-target="#import-result" hx-swap="innerHTML" hx-encoding="multipart/form-data" hx-disabled-elt="find button[type=submit]">
+    <input type="hidden" name="mode" value="preview">
+    <div class="card-head"><div class="card-title">CSV</div><span class="text-xs text-fg-3">Up to 5,000 rows</span></div>
+    <div class="card-body space-y-4">
+      <textarea class="input input-mono min-h-56 resize-y" name="csv" spellcheck="false" aria-label="CSV rows"
+        placeholder="source,target,status,note,tags
+milind.dev/ade,https://amsterdamdanceevent.com,302,ADE,events
+milind.dev/,https://example.com/a/long/url
+events.example.com/*,https://luma.com/{path},301">{{$v.CSV}}</textarea>
+      <div class="flex flex-wrap items-center gap-3">
+        <label class="btn cursor-pointer">{{icon "file-up"}}Choose file<input type="file" name="file" accept=".csv,text/csv,text/plain" class="sr-only"
+          onchange="this.parentElement.nextElementSibling.textContent = this.files[0] ? this.files[0].name : 'or paste rows above'"></label>
+        <span class="text-xs text-fg-3">or paste rows above</span>
+      </div>
+      <div class="space-y-2 border-t border-line pt-4">
+        <label class="flex items-start gap-2 text-[13px] text-fg-2"><input type="checkbox" class="check mt-0.5" name="skip_probe" value="1" {{if $v.SkipProbe}}checked{{end}}>
+          <span>Skip the live check <span class="block text-xs text-fg-3">Faster, but will not notice a path the site already serves.</span></span></label>
+        <label class="flex items-start gap-2 text-[13px] text-fg-2"><input type="checkbox" class="check mt-0.5" name="force" value="1" {{if $v.Force}}checked{{end}}>
+          <span>Create conflicting rows anyway <span class="block text-xs text-fg-3">Takes paths that something else currently answers.</span></span></label>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 border-t border-line px-4 py-3">
+      <button type="submit" class="btn btn-primary">{{icon "check"}}Check rows</button>
+    </div>
+  </form>
+
+  <aside class="space-y-3">
+    <div class="card card-body text-[13px]">
+      <div class="mb-2 font-medium">Columns</div>
+      <dl class="space-y-2 text-fg-2">
+        <div><dt class="mono text-fg">source</dt><dd>Host and path, e.g. <span class="mono">milind.dev/ade</span>. Leave the path empty for a generated slug, or use <span class="mono">/*</span> for the whole host.</dd></div>
+        <div><dt class="mono text-fg">target</dt><dd>Where it redirects. <span class="mono">{path}</span> is replaced with the visited path.</dd></div>
+        <div><dt class="mono text-fg">status <span class="font-sans text-fg-3">optional</span></dt><dd>301, 302 (default), 307 or 308.</dd></div>
+        <div><dt class="mono text-fg">note, tags <span class="font-sans text-fg-3">optional</span></dt><dd>Tags are comma separated; quote the cell.</dd></div>
+      </dl>
+      <p class="mt-3 text-xs text-fg-3">A header row is optional. The export from the Links page uses the same format, so it round-trips.</p>
+    </div>
+    <div class="card card-body text-[13px] text-fg-2">
+      <div class="mb-1 font-medium text-fg">From the command line</div>
+      <code class="mono block rounded-md bg-subtle px-2.5 py-2 text-fg">signpost import links.csv -dry-run</code>
+    </div>
+  </aside>
+</div>
+
+<div id="import-result" class="mt-6"></div>
+{{end}}
+
+{{define "import-result"}}
+{{if .Err}}<div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[13px] text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300" role="alert">{{.Err}}</div>{{end}}
+{{if .Rows}}
+<div class="card overflow-hidden">
+  <div class="card-head flex-wrap">
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="card-title mr-1">{{if .Committed}}Imported{{else}}Preview{{end}}</div>
+      {{with index .Counts "created"}}<span class="badge b-ok">{{.}} created</span>{{end}}
+      {{with index .Counts "ok"}}<span class="badge b-ok">{{.}} ready</span>{{end}}
+      {{with index .Counts "conflict"}}<span class="badge b-warn">{{.}} conflict</span>{{end}}
+      {{with index .Counts "duplicate"}}<span class="badge b-off">{{.}} duplicate</span>{{end}}
+      {{with index .Counts "invalid"}}<span class="badge b-bad">{{.}} invalid</span>{{end}}
+    </div>
+    {{if not .Committed}}
+      {{$n := index .Counts "ok"}}{{if .Force}}{{$n = add $n (index .Counts "conflict")}}{{end}}
+      {{if gt $n 0}}
+      <form hx-post="/ui/import" hx-target="#import-result" hx-swap="innerHTML" hx-disabled-elt="find button">
+        <input type="hidden" name="mode" value="commit">
+        <textarea name="csv" hidden>{{.CSV}}</textarea>
+        {{if .SkipProbe}}<input type="hidden" name="skip_probe" value="1">{{end}}
+        {{if .Force}}<input type="hidden" name="force" value="1">{{end}}
+        <button type="submit" class="btn btn-primary btn-sm">{{icon "check" "icon-sm"}}Create {{plural $n "link"}}</button>
+      </form>
+      {{end}}
+    {{else}}
+      <a href="/links" class="btn btn-sm">View links{{icon "arrow-up-right" "icon-sm"}}</a>
+    {{end}}
+  </div>
+  <div class="max-h-[560px] overflow-auto">
+  <table class="table">
+    <thead class="sticky top-0 bg-surface"><tr><th class="w-12">Row</th><th>Link</th><th>Destination</th><th class="w-14">Code</th><th>Result</th></tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr>
+        <td class="text-fg-3 num">{{.Row}}</td>
+        <td class="max-w-[260px] truncate font-medium">{{if .Link}}<a class="hover:text-accent" href="/links/{{.Link.ID}}">{{.Link.URL}}</a>{{else}}<span class="text-fg-3">{{.Input.Host}}</span>{{shown .Input.Path}}{{end}}</td>
+        <td class="max-w-[280px] truncate text-fg-2" title="{{.Input.Target}}">{{.Input.Target}}</td>
+        <td class="mono text-fg-2">{{or .Input.Status 302}}</td>
+        <td class="max-w-[320px]">
+          {{if eq .Result "created"}}<span class="badge b-ok">Created</span>
+          {{else if eq .Result "ok"}}<span class="badge b-ok">Ready</span>
+          {{else if eq .Result "conflict"}}<span class="badge b-warn">Conflict</span>
+          {{else if eq .Result "duplicate"}}<span class="badge b-off">Duplicate</span>
+          {{else}}<span class="badge b-bad">Invalid</span>{{end}}
+          {{if .Msg}}<div class="mt-1 text-xs text-fg-3">{{.Msg}}</div>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</div>
+{{end}}
+{{end}}

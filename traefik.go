@@ -68,8 +68,21 @@ func Render(cfg Config, domains []Domain, links []Link) ([]byte, error) {
 		r.TLS = &traefikTLS{CertResolver: resolver[host]}
 		return r
 	}
+	// A host with a /* link already sends every request here, and signpost
+	// picks exact paths over /* in memory, so its exact-path links need no
+	// routers of their own. That keeps the config small for hosts signpost
+	// owns outright, however many short links they carry.
+	owned := map[string]bool{}
+	for _, l := range links {
+		if l.Path == "*" {
+			owned[l.Host] = true
+		}
+	}
 	for _, l := range links {
 		name := fmt.Sprintf("%s-link-%d", cfg.ServiceName, l.ID)
+		if l.Path != "*" && owned[l.Host] {
+			continue
+		}
 		if l.Path == "*" {
 			tc.HTTP.Routers[name] = router(l.Host, fmt.Sprintf("Host(`%s`)", l.Host), prioHostLink)
 		} else {

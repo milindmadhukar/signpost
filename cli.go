@@ -18,7 +18,7 @@ import (
 
 type client struct{ base, token string }
 
-var takesValue = map[string]bool{"note": true, "resolver": true, "fallback": true}
+var takesValue = map[string]bool{"note": true, "resolver": true, "fallback": true, "tags": true, "password": true}
 
 func (c client) do(method, path string, body, out any) error {
 	var rd io.Reader
@@ -136,9 +136,12 @@ func runClient(cmd string, args []string) error {
 		drop := fs.Bool("drop-query", false, "")
 		note := fs.String("note", "", "")
 		force := fs.Bool("force", false, "")
+		short := fs.Bool("short", false, "")
+		tags := fs.String("tags", "", "")
+		password := fs.String("password", "", "")
 		fs.Parse(flags)
 		if len(pos) != 2 {
-			return errors.New("usage: signpost add <host/path> <target>")
+			return errors.New("usage: signpost add <host/path> <target>, or signpost add -short <host> <target>")
 		}
 		status := 302
 		switch {
@@ -150,9 +153,16 @@ func runClient(cmd string, args []string) error {
 			status = 308
 		}
 		host, path := splitURL(pos[0])
+		if *short {
+			path = "" // the server picks a free slug
+		}
 		keep := !*drop
 		var l Link
-		if err := c.do("POST", "/api/links", linkInput{Host: host, Path: path, Target: pos[1], Status: status, KeepQuery: &keep, Note: *note, Force: *force}, &l); err != nil {
+		in := linkInput{Host: host, Path: path, Target: pos[1], Status: status, KeepQuery: &keep, Note: *note, Force: *force, Password: *password}
+		if *tags != "" {
+			in.Tags = []string{*tags}
+		}
+		if err := c.do("POST", "/api/links", in, &l); err != nil {
 			return err
 		}
 		fmt.Printf("https://%s -> %s (%d). Checking it goes live: `signpost ls` in a bit.\n", l.URL(), l.Target, l.Status)
@@ -268,6 +278,66 @@ func runClient(cmd string, args []string) error {
 		}
 		fmt.Printf("%s resolver=%s fallback=%q\n", host, cur.CertResolver, cur.Fallback)
 		return nil
+
+	case "import":
+		dry := fs.Bool("dry-run", false, "")
+		force := fs.Bool("force", false, "")
+		skip := fs.Bool("skip-check", false, "")
+		fs.Parse(flags)
+		if len(pos) != 1 {
+			return errors.New("usage: signpost import <file.csv|-> [-dry-run] [-force] [-skip-check]")
+		}
+		var b []byte
+		var err error
+		if pos[0] == "-" {
+			b, err = io.ReadAll(os.Stdin)
+		} else {
+			b, err = os.ReadFile(pos[0])
+		}
+		if err != nil {
+			return err
+		}
+		var res struct {
+			Created int       `json:"created"`
+			Rows    []bulkRow `json:"rows"`
+		}
+		req := bulkRequest{CSV: string(b), bulkOpts: bulkOpts{DryRun: *dry, Force: *force, SkipProbe: *skip}}
+		if err := c.do("POST", "/api/links/bulk", req, &res); err != nil {
+			return err
+		}
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "ROW\tLINK\tRESULT\tDETAIL")
+		counts := map[string]int{}
+		for _, r := range res.Rows {
+			counts[r.Result]++
+			link := r.Input.Host + r.Input.Path
+			if r.Link != nil {
+				link = r.Link.URL()
+			}
+			fmt.Fprintf(tw, "%d\t%s\t%s\t%s\n", r.Row, link, r.Result, r.Msg)
+		}
+		tw.Flush()
+		if *dry {
+			fmt.Printf("\ndry run: %d ready, %d conflict, %d duplicate, %d invalid. Nothing was created.\n",
+				counts["ok"], counts["conflict"], counts["duplicate"], counts["invalid"])
+		} else {
+			fmt.Printf("\ncreated %d link(s)\n", res.Created)
+		}
+		return nil
+
+	case "export":
+		req, _ := http.NewRequest("GET", c.base+"/api/links.csv", nil)
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			return errors.New(resp.Status)
+		}
+		_, err = io.Copy(os.Stdout, resp.Body)
+		return err
 
 	case "domain-rm":
 		if len(pos) != 1 {

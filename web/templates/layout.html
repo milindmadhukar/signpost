@@ -1,0 +1,89 @@
+{{define "layout"}}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{.Title}} · signpost</title>
+<script>
+  // Before first paint: pick the theme, so a dark-mode reload never flashes white.
+  (function () {
+    var p = localStorage.getItem("theme") || "system";
+    var d = p === "dark" || (p === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = d ? "dark" : "light";
+    document.documentElement.dataset.themePref = p;
+  })();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2318181b'/><path d='M16 6v20M10 10h10l3 3-3 3H10zM22 18H13l-3 3 3 3h9z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/app.css?v={{.Version}}">
+<script src="/static/htmx.min.js?v={{.Version}}" defer></script>
+<script src="/static/app.js?v={{.Version}}" defer></script>
+<meta name="htmx-config" content='{"scrollIntoViewOnBoost": false, "defaultFocusScroll": false}'>
+</head>
+<body hx-headers='{"X-Signpost-UI": "1"}' hx-boost="true" class="group/body">
+<div class="flex min-h-dvh">
+  <!-- Sidebar: fixed on desktop, a slide-over on small screens -->
+  <aside class="fixed inset-y-0 left-0 z-40 flex w-60 -translate-x-full flex-col border-r border-line bg-canvas transition-transform group-data-[nav-open]/body:translate-x-0 md:translate-x-0">
+    <div class="flex h-14 items-center gap-2.5 px-4">
+      <a href="/links" class="flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-tight text-fg">
+        <span class="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-fg">{{icon "signpost" "icon-sm"}}</span>
+        signpost
+      </a>
+    </div>
+    <nav class="flex flex-1 flex-col gap-0.5 px-3 pt-2" aria-label="Main">
+      {{template "nav-item" dict "Href" "/links" "Label" "Links" "Icon" "link" "On" (eq .Nav "links")}}
+      {{template "nav-item" dict "Href" "/analytics" "Label" "Analytics" "Icon" "chart-column" "On" (eq .Nav "analytics")}}
+      {{template "nav-item" dict "Href" "/domains" "Label" "Domains" "Icon" "globe" "On" (eq .Nav "domains")}}
+      {{template "nav-item" dict "Href" "/import" "Label" "Import" "Icon" "upload" "On" (eq .Nav "import")}}
+      <div class="my-2 h-px bg-line"></div>
+      {{template "nav-item" dict "Href" "/settings" "Label" "Settings" "Icon" "settings" "On" (eq .Nav "settings")}}
+    </nav>
+    <div class="flex flex-col gap-3 border-t border-line p-3">
+      <div class="seg w-full" role="group" aria-label="Theme">
+        <button type="button" class="flex-1" data-theme-set="system" aria-pressed="false" title="Match system">{{icon "monitor" "icon-sm"}}<span class="sr-only">System</span></button>
+        <button type="button" class="flex-1" data-theme-set="light" aria-pressed="false" title="Light">{{icon "sun" "icon-sm"}}<span class="sr-only">Light</span></button>
+        <button type="button" class="flex-1" data-theme-set="dark" aria-pressed="false" title="Dark">{{icon "moon" "icon-sm"}}<span class="sr-only">Dark</span></button>
+      </div>
+      {{if .User}}
+      <div class="flex items-center gap-2.5 px-1">
+        <span class="flex size-7 items-center justify-center rounded-full bg-subtle text-xs font-semibold text-fg-2 ring-1 ring-line">{{initial .User}}</span>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-[13px] font-medium">{{.User}}</div>
+          <div class="text-xs text-fg-3">Signed in with Authelia</div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </aside>
+  <div class="fixed inset-0 z-30 hidden bg-black/40 group-data-[nav-open]/body:block md:!hidden" data-nav-toggle></div>
+
+  <div class="flex min-w-0 flex-1 flex-col md:pl-60">
+    <header class="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-canvas/90 px-4 backdrop-blur md:hidden">
+      <button type="button" class="btn btn-ghost btn-icon" data-nav-toggle aria-label="Open menu">{{icon "menu"}}</button>
+      <span class="text-[15px] font-semibold tracking-tight">signpost</span>
+    </header>
+    <main class="mx-auto w-full max-w-[1200px] px-4 pb-16 pt-6 md:px-8 md:pt-8">
+      {{template "content" .}}
+    </main>
+  </div>
+</div>
+
+<div id="toasts" class="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2" aria-live="polite"></div>
+
+<dialog id="confirm" class="modal" aria-labelledby="confirm-title">
+  <form method="dialog" class="p-5">
+    <h2 id="confirm-title" class="text-[15px] font-semibold">Are you sure?</h2>
+    <p id="confirm-text" class="mt-1.5 text-[13px] leading-relaxed text-fg-2"></p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button class="btn" value="cancel">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok" value="ok">Delete</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>{{end}}
+
+{{define "nav-item"}}
+<a href="{{.Href}}" class="nav-item" {{if .On}}aria-current="page"{{end}}>{{icon .Icon}}{{.Label}}</a>
+{{end}}
