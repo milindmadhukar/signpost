@@ -9,8 +9,10 @@
     <div class="card-head"><div class="card-title">New links</div></div>
     <div class="card-body">
       <label class="label" for="st-host">Default host</label>
-      <input class="input input-mono max-w-sm" id="st-host" name="default_host" list="st-hosts" value="{{$v.DefaultHost}}" placeholder="the last host you used" autocomplete="off" spellcheck="false">
-      <datalist id="st-hosts">{{range $v.Hosts}}<option value="{{.}}"></option>{{end}}</datalist>
+      <select class="input max-w-sm" id="st-host" name="default_host">
+        <option value="">Whichever host was used last</option>
+        {{range $v.Hosts}}<option {{if eq . $v.DefaultHost}}selected{{end}}>{{.}}</option>{{end}}
+      </select>
       <p class="hint">The new-link form starts on this host. Empty: whichever host you used last.</p>
     </div>
     <div class="flex justify-end border-t border-line px-4 py-3"><button type="submit" class="btn btn-primary btn-sm">Save</button></div>

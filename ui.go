@@ -222,7 +222,6 @@ func (a *App) uiRoutes(mux *http.ServeMux) {
 
 	ui := http.NewServeMux()
 	ui.HandleFunc("POST /ui/links", a.uiCreateLink)
-	ui.HandleFunc("GET /ui/slug", a.uiSlug)
 	ui.HandleFunc("POST /ui/links/{id}", a.uiSaveLink)
 	ui.HandleFunc("POST /ui/links/{id}/password", a.uiPassword)
 	ui.HandleFunc("POST /ui/links/{id}/toggle", a.uiToggle)
@@ -252,6 +251,7 @@ func (a *App) uiRoutes(mux *http.ServeMux) {
 
 type formView struct {
 	Host, Path, Target, Note, Tags, Expires string
+	HostOther                               bool // Host is typed in, not one of Hosts
 	Status                                  int
 	KeepQuery                               bool
 	Msg                                     string
@@ -360,11 +360,16 @@ func (a *App) uiCreateLink(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	status, _ := strconv.Atoi(r.FormValue("status"))
 	keep := r.FormValue("keep_query") == "1"
+	host := r.FormValue("host")
+	if host == "__other__" {
+		host = r.FormValue("host_other")
+	}
 	fv := formView{
-		Host: r.FormValue("host"), Path: r.FormValue("path"), Target: r.FormValue("target"), Note: r.FormValue("note"),
+		Host: host, Path: r.FormValue("path"), Target: r.FormValue("target"), Note: r.FormValue("note"),
 		Tags: r.FormValue("tags"), Expires: r.FormValue("expires_at"), Status: status, KeepQuery: keep,
 	}
 	fv.Hosts = a.newForm().Hosts
+	fv.HostOther = !contains(fv.Hosts, normHost(fv.Host))
 	exp, err := parseLocal(fv.Expires, tzOf(r))
 	if err == nil && exp != nil && *exp <= time.Now().Unix() {
 		err = fail(400, "expiry must be in the future")
@@ -398,15 +403,6 @@ func (a *App) uiCreateLink(w http.ResponseWriter, r *http.Request) {
 		v.OOB = true
 		render(w, "links", "links-table", v)
 	}
-}
-
-func (a *App) uiSlug(w http.ResponseWriter, r *http.Request) {
-	slug, err := a.newSlug(normHost(r.FormValue("host")), nil)
-	if err != nil {
-		toastErr(w, err)
-		slug = ""
-	}
-	render(w, "links", "path-input", strings.TrimPrefix(slug, "/"))
 }
 
 func (a *App) uiToggle(w http.ResponseWriter, r *http.Request) {

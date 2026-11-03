@@ -23,7 +23,7 @@
 {{end}}
 
 {{define "domains-table"}}
-<div id="domains-table" class="card" {{if .Polling}}hx-get="/domains" hx-select="#domains-table" hx-target="this" hx-swap="outerHTML" hx-trigger="every 4s"{{end}}>
+<div id="domains-table" class="card" hx-disinherit="*" {{if .Polling}}hx-get="/domains" hx-select="#domains-table" hx-target="this" hx-swap="outerHTML" hx-trigger="every 4s"{{end}}>
   {{if .Domains}}
   <div class="overflow-x-auto">
   <table class="table">
