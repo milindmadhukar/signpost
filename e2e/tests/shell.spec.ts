@@ -66,9 +66,12 @@ test("a request that cannot reach the server says so, with a way out", async ({ 
 
 test("every page renders without errors", async ({ page }) => {
   const errors = watchErrors(page);
-  for (const url of ["/links", "/links/1", "/analytics", "/analytics?range=24h", "/analytics?range=90d&link=2", "/domains", "/import", "/settings"]) {
+  // /links/8 and /links/10 are the demo's expired and expiring links, whose
+  // header once stopped the page rendering halfway.
+  for (const url of ["/links", "/links/1", "/links/8", "/links/10", "/analytics", "/analytics?range=24h", "/analytics?range=90d&link=2", "/domains", "/import", "/settings"]) {
     const res = await page.goto(url);
     expect(res?.status(), url).toBe(200);
+    if (url.startsWith("/links/")) await expect(page.locator("#settings-card"), url).toBeVisible();
   }
   expect(errors).toEqual([]);
 });
