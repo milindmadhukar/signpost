@@ -99,6 +99,7 @@ var funcs = template.FuncMap{
 	},
 	"join":        strings.Join,
 	"countryName": countryName,
+	"placeName":   placeName,
 	"worldMap":    makeWorldMap,
 	"geoCredit":   func() bool { return geoCredit.Load() },
 	"titleCase":   titleCase,
@@ -505,6 +506,7 @@ func (a *App) statsBundle(r *http.Request, id int64) (*Stats, barChart, []heatRo
 	lists := map[string][]barListRow{
 		"Referrers": makeBarList(st.Referrers, st.Clicks, nil),
 		"Countries": makeBarList(st.Countries, st.Clicks, nil),
+		"Cities":    makeBarList(st.Cities, st.Clicks, nil),
 		"Devices":   makeBarList(st.Devices, st.Clicks, nil),
 		"Browsers":  makeBarList(st.Browsers, st.Clicks, nil),
 		"OS":        makeBarList(st.OSes, st.Clicks, nil),

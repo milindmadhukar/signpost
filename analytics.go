@@ -79,6 +79,7 @@ type Stats struct {
 	Countries []statRow `json:"countries"`
 	// GeoCountries is every country, for the map; Countries is its top 8.
 	GeoCountries []statRow     `json:"-"`
+	Cities       []statRow     `json:"cities"`
 	Devices      []statRow     `json:"devices"`
 	Browsers     []statRow     `json:"browsers"`
 	OSes         []statRow     `json:"os"`
@@ -192,6 +193,28 @@ func (s *Store) Stats(q statsQuery) (*Stats, error) {
 		st.GeoCountries[i].Label = countryName(st.GeoCountries[i].Key)
 	}
 	st.Countries = st.GeoCountries[:min(8, len(st.GeoCountries))]
+	// Cities are grouped with their country, since names repeat (Hyderabad
+	// is in India and Pakistan). Clicks with no city are left out, so the
+	// list can add up to less than the total.
+	rows, err = s.db.Query(`SELECT city, country, COUNT(*) AS n FROM clicks WHERE `+where+` AND city != '' AND country != ''
+		GROUP BY city, country ORDER BY n DESC, city LIMIT 8`, args...)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var city, country string
+		var r statRow
+		if err := rows.Scan(&city, &country, &r.N); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		r.Key, r.Label = city+", "+country, placeName(country, city)
+		st.Cities = append(st.Cities, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if st.Devices, err = top("device", 4); err != nil {
 		return nil, err
 	}
@@ -226,7 +249,7 @@ func (s *Store) Stats(q statsQuery) (*Stats, error) {
 		rows.Close()
 	}
 
-	rq := `SELECT c.at, c.referrer, c.country, c.ref_host, c.device, c.browser, c.os, l.id, l.host, l.path
+	rq := `SELECT c.at, c.referrer, c.country, c.city, c.ref_host, c.device, c.browser, c.os, l.id, l.host, l.path
 		FROM clicks c JOIN links l ON l.id = c.link_id WHERE c.bot = 0`
 	var rargs []any
 	if q.LinkID != 0 {
@@ -241,7 +264,7 @@ func (s *Store) Stats(q statsQuery) (*Stats, error) {
 	for rows.Next() {
 		var rc recentClick
 		var host, path string
-		rows.Scan(&rc.At, &rc.Referrer, &rc.Country, &rc.RefHost, &rc.Device, &rc.Browser, &rc.OS, &rc.LinkID, &host, &path)
+		rows.Scan(&rc.At, &rc.Referrer, &rc.Country, &rc.City, &rc.RefHost, &rc.Device, &rc.Browser, &rc.OS, &rc.LinkID, &host, &path)
 		rc.LinkURL = Link{Host: host, Path: path}.URL()
 		st.Recent = append(st.Recent, rc)
 	}
@@ -326,6 +349,14 @@ func countryName(code string) string {
 		return n
 	}
 	return strings.ToUpper(code)
+}
+
+// placeName is "Pune, India", or just the country when there is no city.
+func placeName(country, city string) string {
+	if city == "" || country == "" {
+		return countryName(country)
+	}
+	return city + ", " + countryName(country)
 }
 
 // linkStat is one link's row in the per-link table on the Analytics page.
