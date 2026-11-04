@@ -2,8 +2,8 @@
 # architecture ($BUILDPLATFORM) and Go cross-compiles for the target, so an
 # arm64 or armv7 image builds at native speed with no emulation. The final
 # stage is FROM scratch and runs nothing at build time.
-# Country lookups for clicks Cloudflare did not locate: DB-IP's free
-# country database (CC BY 4.0, https://db-ip.com), published monthly. CI
+# Country and city lookups for clicks Cloudflare did not locate: DB-IP's
+# free city database (CC BY 4.0, https://db-ip.com), published monthly. CI
 # passes GEOIP_MONTH so the layer is rebuilt when a new month is out; the
 # previous month is the fallback for the first days of a month.
 FROM --platform=$BUILDPLATFORM alpine:3 AS geoip
@@ -12,9 +12,9 @@ RUN set -e; m="${GEOIP_MONTH:-$(date -u +%Y-%m)}"; y=${m%-*}; n=$(expr "${m#*-}"
     if [ "$n" -eq 1 ]; then p="$((y - 1))-12"; else p="$y-$(printf %02d $((n - 1)))"; fi; \
     mkdir -p /geoip; \
     for x in "$m" "$p"; do \
-      wget -qO- "https://download.db-ip.com/free/dbip-country-lite-$x.mmdb.gz" | gunzip > /geoip/dbip-country-lite.mmdb && break; \
+      wget -qO- "https://download.db-ip.com/free/dbip-city-lite-$x.mmdb.gz" | gunzip > /geoip/dbip-city-lite.mmdb && break; \
     done; \
-    test -s /geoip/dbip-country-lite.mmdb
+    test -s /geoip/dbip-city-lite.mmdb
 
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 # Tailwind's standalone CLI scans the templates and writes the one stylesheet,
@@ -54,10 +54,10 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /signpost /signpost
 # Empty dir owned by 1000, so a fresh named volume mounted here inherits it.
 COPY --from=build --chown=1000:1000 /data /data
-COPY --from=geoip /geoip/dbip-country-lite.mmdb /usr/share/signpost/dbip-country-lite.mmdb
+COPY --from=geoip /geoip/dbip-city-lite.mmdb /usr/share/signpost/dbip-city-lite.mmdb
 USER 1000:1000
 ENV SIGNPOST_DB=/data/signpost.db
-ENV SIGNPOST_GEOIP_DB=/usr/share/signpost/dbip-country-lite.mmdb
+ENV SIGNPOST_GEOIP_DB=/usr/share/signpost/dbip-city-lite.mmdb
 EXPOSE 8080 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s CMD ["/signpost", "healthcheck"]
 ENTRYPOINT ["/signpost"]

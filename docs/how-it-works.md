@@ -132,7 +132,7 @@ signpost can answer.
 
 ## Analytics and privacy
 
-Each click stores the time, the referrer, the country, the parsed user agent
+Each click stores the time, the referrer, the country and city, the parsed user agent
 (device, browser, operating system) and a visitor pseudonym. It does not
 store the IP address.
 
@@ -142,17 +142,28 @@ unique visitors can be counted. The next day the hash is different, so nobody
 can be followed across days, and the IP cannot be recovered from it.
 
 Country comes from Cloudflare's `CF-IPCountry` header when your domain is
-proxied by Cloudflare. Otherwise, or when Cloudflare reports `XX`
-(unknown), signpost looks the IP up in a MaxMind-format country database
-on disk (`SIGNPOST_GEOIP_DB`). The image ships
-[DB-IP's free country database](https://db-ip.com/db/download/ip-to-country-lite),
-which CI refreshes monthly. The lookup happens in the process, nothing is
-sent anywhere, and only the two-letter code is kept. Without a database,
-clicks on domains that are not proxied are recorded with no country.
+proxied by Cloudflare, and city from `CF-IPCity` if Cloudflare's "Add
+visitor location headers" managed transform is on. Otherwise, or when
+Cloudflare reports `XX` (unknown), signpost looks the IP up in a
+MaxMind-format database on disk (`SIGNPOST_GEOIP_DB`). The image ships
+[DB-IP's free city database](https://db-ip.com/db/download/ip-to-city-lite),
+which CI refreshes monthly. When Cloudflare gave the country but no city,
+the database's city is used only if it agrees on the country. The lookup
+happens in the process, nothing is sent anywhere, and only the two-letter
+country code and the city name are kept. Without a database, clicks on
+domains that are not proxied are recorded with no location.
+
+City data from a free IP database is approximate. Mobile networks in
+particular often route through a gateway in a bigger city, so a click from
+Pune may be counted in Mumbai. DB-IP sometimes names a neighbourhood
+("Navi Mumbai (Ghansoli)"); signpost keeps only the city so clicks group
+together. Clicks recorded before city lookups existed have no city.
 
 The Analytics page draws countries on a world map (Natural Earth's
 1:50m country shapes, generated into `web/world.txt` by `tools/worldmap`),
-shaded on a log scale so one busy country does not wash out the rest.
+shaded on a log scale so one busy country does not wash out the rest. Beside
+it, a switch shows the top countries or the top cities, each city counted
+with its country so places that share a name stay apart.
 
 Link previews and crawlers (Slack, WhatsApp, Discord, facebookexternalhit,
 Twitterbot, Googlebot, curl and many more) are recorded but excluded from

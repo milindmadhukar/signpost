@@ -92,6 +92,7 @@ type Click struct {
 	At       int64  `json:"at"`
 	Referrer string `json:"referrer"`
 	Country  string `json:"country"`
+	City     string `json:"city"`
 	UA       string `json:"ua"`
 	RefHost  string `json:"ref_host"`
 	Device   string `json:"device"`
@@ -195,6 +196,9 @@ CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`)(tx); err !=
 		}
 		return nil
 	},
+
+	// 3: the city a click came from, beside its country.
+	execMigration(`ALTER TABLE clicks ADD COLUMN city TEXT NOT NULL DEFAULT '';`),
 }
 
 func execMigration(q string) func(*sql.Tx) error {
@@ -529,8 +533,8 @@ func (s *Store) RecordClicks(evs []clickEvent) error {
 		return err
 	}
 	defer tx.Rollback()
-	ins, err := tx.Prepare(`INSERT INTO clicks (link_id, at, referrer, country, ua, ref_host, device, browser, os, bot, visitor)
-		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM links WHERE id = ?)`)
+	ins, err := tx.Prepare(`INSERT INTO clicks (link_id, at, referrer, country, city, ua, ref_host, device, browser, os, bot, visitor)
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM links WHERE id = ?)`)
 	if err != nil {
 		return err
 	}
@@ -542,7 +546,7 @@ func (s *Store) RecordClicks(evs []clickEvent) error {
 	bumps := map[int64]*bump{}
 	for _, ev := range evs {
 		c := ev.c
-		if _, err := ins.Exec(ev.id, c.At, c.Referrer, c.Country, c.UA, c.RefHost, c.Device, c.Browser, c.OS, b2i(c.Bot), c.Visitor, ev.id); err != nil {
+		if _, err := ins.Exec(ev.id, c.At, c.Referrer, c.Country, c.City, c.UA, c.RefHost, c.Device, c.Browser, c.OS, b2i(c.Bot), c.Visitor, ev.id); err != nil {
 			return err
 		}
 		if c.Bot {
@@ -569,7 +573,7 @@ func (s *Store) RecordClick(id int64, c Click) error {
 }
 
 func (s *Store) Clicks(id int64, limit int) ([]Click, error) {
-	rows, err := s.db.Query(`SELECT at, referrer, country, ua, ref_host, device, browser, os, bot FROM clicks WHERE link_id = ? ORDER BY at DESC LIMIT ?`, id, limit)
+	rows, err := s.db.Query(`SELECT at, referrer, country, city, ua, ref_host, device, browser, os, bot FROM clicks WHERE link_id = ? ORDER BY at DESC LIMIT ?`, id, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -578,7 +582,7 @@ func (s *Store) Clicks(id int64, limit int) ([]Click, error) {
 	for rows.Next() {
 		var c Click
 		var bot int
-		if err := rows.Scan(&c.At, &c.Referrer, &c.Country, &c.UA, &c.RefHost, &c.Device, &c.Browser, &c.OS, &bot); err != nil {
+		if err := rows.Scan(&c.At, &c.Referrer, &c.Country, &c.City, &c.UA, &c.RefHost, &c.Device, &c.Browser, &c.OS, &bot); err != nil {
 			return nil, err
 		}
 		c.Bot = bot == 1

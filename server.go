@@ -105,12 +105,12 @@ func serve(cfg Config) error {
 		// A missing or broken file costs countries, not redirects, so it
 		// is reported and signpost carries on without it.
 		if g, err := openGeo(cfg.GeoIPDB); err != nil {
-			log.Printf("warning: SIGNPOST_GEOIP_DB: %v; countries will come from Cloudflare only", err)
+			log.Printf("warning: SIGNPOST_GEOIP_DB: %v; locations will come from Cloudflare only", err)
 		} else {
 			app.geo = g
 			geoCredit.Store(strings.HasPrefix(strings.ToUpper(g.desc), "DBIP"))
 			defer g.Close()
-			log.Printf("country lookups from %s (%s, built %s)", cfg.GeoIPDB, g.desc, g.built.Format("2006-01-02"))
+			log.Printf("location lookups from %s (%s, built %s)", cfg.GeoIPDB, g.desc, g.built.Format("2006-01-02"))
 		}
 	}
 	writerDone := make(chan struct{})
@@ -370,11 +370,13 @@ func (a *App) count(r *http.Request, id int64) {
 	ua := r.UserAgent()
 	parsed := parseUA(ua)
 	now := time.Now()
+	loc := clickPlace(r, a.geo)
 	c := Click{
 		At:       now.Unix(),
 		Referrer: trunc(r.Referer(), 300),
 		RefHost:  refHost(r.Referer()),
-		Country:  clickCountry(r, a.geo),
+		Country:  loc.Country,
+		City:     loc.City,
 		UA:       trunc(ua, 300),
 		Device:   parsed.Device,
 		Browser:  parsed.Browser,
