@@ -78,6 +78,33 @@ test.describe("analytics", () => {
     await expect(page).toHaveURL(/\/links\/\d+\?range=7d/);
     expect(errors).toEqual([]);
   });
+
+  // Hover on desktop, tap on the iPhone: either way the country's numbers
+  // show, and a tap or move off the map hides them.
+  test("world map shows a country's clicks", async ({ page, isMobile }) => {
+    const errors = watchErrors(page);
+    await page.goto("/analytics?range=30d");
+    const card = page.locator("#locations");
+    const india = card.locator('.geo path[data-name="India"]');
+    await india.scrollIntoViewIfNeeded();
+    await expect(india).not.toHaveClass("geo-0");
+    const box = (await india.boundingBox())!;
+    const at = { x: box.x + box.width / 2, y: box.y + box.height * 0.4 };
+    if (isMobile) await page.touchscreen.tap(at.x, at.y);
+    else await page.mouse.move(at.x, at.y);
+    const tip = card.locator(".geo-tip");
+    await expect(tip).toBeVisible();
+    await expect(tip).toContainText(/India · [\d,]+ clicks · \d+%/);
+    // The list beside the map agrees with the tooltip.
+    const n = (await card.locator(".barlist-row", { hasText: "India" }).locator(".font-medium").textContent())!.trim();
+    await expect(tip).toContainText(`${n} click`);
+
+    const title = card.locator(".card-title");
+    if (isMobile) await title.tap();
+    else await title.hover();
+    await expect(tip).toBeHidden();
+    expect(errors).toEqual([]);
+  });
 });
 
 test.describe("domains", () => {

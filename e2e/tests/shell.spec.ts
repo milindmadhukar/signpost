@@ -45,11 +45,17 @@ test("theme switch applies at once and survives a reload", async ({ page, isMobi
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
-test("no page scrolls sideways", async ({ page }) => {
-  for (const url of ["/links", "/links/1", "/analytics", "/analytics?link=1", "/domains", "/import", "/settings"]) {
-    await page.goto(url);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow, url).toBeLessThanOrEqual(0);
+test("no page scrolls sideways", async ({ page, isMobile }) => {
+  // Tablet and half-screen widths too: there the sidebar is showing but the
+  // wide tables no longer fit their cards and scroll inside them.
+  const widths = isMobile ? [0] : [0, 820, 1024];
+  for (const width of widths) {
+    if (width) await page.setViewportSize({ width, height: 900 });
+    for (const url of ["/links", "/links/1", "/analytics", "/analytics?link=1", "/domains", "/import", "/settings"]) {
+      await page.goto(url);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${url} at ${width || "default"} px`).toBeLessThanOrEqual(0);
+    }
   }
 });
 

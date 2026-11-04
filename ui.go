@@ -99,6 +99,8 @@ var funcs = template.FuncMap{
 	},
 	"join":        strings.Join,
 	"countryName": countryName,
+	"worldMap":    makeWorldMap,
+	"geoCredit":   func() bool { return geoCredit.Load() },
 	"titleCase":   titleCase,
 	"list":        func(s ...string) []string { return s },
 	"add":         func(a, b int) int { return a + b },

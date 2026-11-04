@@ -105,8 +105,9 @@ func demoSeed(args []string) error {
 	refs := []string{"", "https://l.instagram.com/", "https://t.co/abc", "https://www.linkedin.com/feed/", "https://www.google.com/",
 		"https://news.ycombinator.com/item?id=1", "https://www.reddit.com/r/edmproduction/", "https://web.whatsapp.com/", "https://discord.com/channels/1"}
 	refW := []float64{30, 26, 8, 9, 7, 3, 4, 6, 4}
-	countriesW := []string{"IN", "NL", "US", "GB", "DE", "FR", "BE", "AE", "SG", "CA", "ES", "AU"}
-	countryW := []float64{34, 20, 14, 8, 6, 4, 3, 3, 2, 2, 2, 2}
+	// "" is a click no one could place, which the map reports separately.
+	countriesW := []string{"IN", "NL", "US", "GB", "DE", "FR", "BE", "AE", "SG", "CA", "ES", "AU", "JP", "BR", "PL", "ZA", "MX", "KE", ""}
+	countryW := []float64{34, 20, 14, 8, 6, 4, 3, 3, 2, 2, 2, 2, 1.5, 1.5, 1, 0.6, 0.6, 0.4, 2}
 	uas := []string{
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0 (iPhone15,3; iOS 18_1; en_US)",
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",

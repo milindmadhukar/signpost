@@ -43,6 +43,7 @@ type App struct {
 	// apart from real visitors and never counted.
 	probeID string
 	guesses *limiter // password attempts per (IP, link)
+	geo     *geoDB   // nil without SIGNPOST_GEOIP_DB
 	checks  chan int64
 }
 
@@ -99,6 +100,18 @@ func serve(cfg Config) error {
 	app, err := newApp(cfg, st)
 	if err != nil {
 		return err
+	}
+	if cfg.GeoIPDB != "" {
+		// A missing or broken file costs countries, not redirects, so it
+		// is reported and signpost carries on without it.
+		if g, err := openGeo(cfg.GeoIPDB); err != nil {
+			log.Printf("warning: SIGNPOST_GEOIP_DB: %v; countries will come from Cloudflare only", err)
+		} else {
+			app.geo = g
+			geoCredit.Store(strings.HasPrefix(strings.ToUpper(g.desc), "DBIP"))
+			defer g.Close()
+			log.Printf("country lookups from %s (%s, built %s)", cfg.GeoIPDB, g.desc, g.built.Format("2006-01-02"))
+		}
 	}
 	writerDone := make(chan struct{})
 	go func() { app.clickWriter(time.Second, 500); close(writerDone) }()
@@ -361,7 +374,7 @@ func (a *App) count(r *http.Request, id int64) {
 		At:       now.Unix(),
 		Referrer: trunc(r.Referer(), 300),
 		RefHost:  refHost(r.Referer()),
-		Country:  r.Header.Get("Cf-Ipcountry"),
+		Country:  clickCountry(r, a.geo),
 		UA:       trunc(ua, 300),
 		Device:   parsed.Device,
 		Browser:  parsed.Browser,
