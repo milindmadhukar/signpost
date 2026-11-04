@@ -40,7 +40,7 @@ $ signpost check <host/path|id>
 | `add -short` | Creates a link on a generated 7-character slug, with no look-alike characters. |
 | `set` | Changes a link's destination. |
 | `rm` | Deletes a link and its clicks. |
-| `clicks` | The total, and the most recent clicks with time, country and referrer. |
+| `clicks` | The total, and the most recent clicks with time, location (city and country) and referrer. |
 | `check` | Probes the link again and updates its state. |
 
 Flags for `add`:

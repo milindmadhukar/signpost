@@ -9,7 +9,7 @@ in the dashboard or through the API and stored in the database.
 | Variable | Default | Description |
 |---|---|---|
 | `SIGNPOST_DB` | `/data/signpost.db` in the image, `signpost.db` otherwise | The SQLite file. Created and migrated on start. |
-| `SIGNPOST_GEOIP_DB` | DB-IP's country database in the image, none otherwise | A MaxMind-format (`.mmdb`) country database, used for clicks that arrive without Cloudflare's `CF-IPCountry`. Any file with `country.iso_code` works: DB-IP's [IP to Country Lite](https://db-ip.com/db/download/ip-to-country-lite) or MaxMind's GeoLite2 Country. If it cannot be opened, signpost logs a warning and carries on without it. |
+| `SIGNPOST_GEOIP_DB` | DB-IP's city database in the image, none otherwise | A MaxMind-format (`.mmdb`) database, used to place clicks that arrive without Cloudflare's `CF-IPCountry`. A city database gives country and city: DB-IP's [IP to City Lite](https://db-ip.com/db/download/ip-to-city-lite) or MaxMind's GeoLite2 City. A country database (IP to Country Lite, GeoLite2 Country) works too, and gives countries only. If it cannot be opened, signpost logs a warning and carries on without it. |
 | `SIGNPOST_LISTEN` | `:8080` | Address for redirects. This is what Traefik forwards links to. |
 | `SIGNPOST_ADMIN_LISTEN` | `:8081` | Address for the dashboard, API, `/traefik.yml` and `/healthz`. |
 

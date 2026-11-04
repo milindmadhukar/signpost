@@ -10,7 +10,7 @@ on:
     tags: ["v*.*.*"]
   pull_request:
   workflow_dispatch:
-  # Monthly, after DB-IP publishes its new country database, so :edge picks
+  # Monthly, after DB-IP publishes its new city database, so :edge picks
   # it up even in a month with no merges.
   schedule:
     - cron: "17 6 3 * *"

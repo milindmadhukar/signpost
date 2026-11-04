@@ -211,7 +211,7 @@ func runClient(cmd string, args []string) error {
 		fmt.Printf("https://%s: %d clicks\n", l.URL(), l.Clicks)
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		for _, x := range cs {
-			fmt.Fprintf(tw, "%s\t%s\t%s\n", time.Unix(x.At, 0).Format("Jan 02 15:04"), x.Country, x.Referrer)
+			fmt.Fprintf(tw, "%s\t%s\t%s\n", time.Unix(x.At, 0).Format("Jan 02 15:04"), placeName(x.Country, x.City), x.Referrer)
 		}
 		return tw.Flush()
 
