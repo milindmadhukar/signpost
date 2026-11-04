@@ -29,6 +29,7 @@ type Config struct {
 	TraefikFile     string
 	ProbeAddr       string
 	PublicIPs       []netip.Addr // this box's public addresses, for the DNS check
+	GeoIPDB         string       // MaxMind-format country database, for clicks Cloudflare did not locate
 }
 
 func env(k, def string) string {
@@ -64,6 +65,7 @@ func loadConfig() Config {
 		CertResolver:    os.Getenv("SIGNPOST_CERT_RESOLVER"),
 		TraefikFile:     os.Getenv("SIGNPOST_TRAEFIK_FILE"),
 		ProbeAddr:       os.Getenv("SIGNPOST_PROBE_ADDR"),
+		GeoIPDB:         os.Getenv("SIGNPOST_GEOIP_DB"),
 	}
 }
 

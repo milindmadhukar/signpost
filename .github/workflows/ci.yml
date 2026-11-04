@@ -10,6 +10,10 @@ on:
     tags: ["v*.*.*"]
   pull_request:
   workflow_dispatch:
+  # Monthly, after DB-IP publishes its new country database, so :edge picks
+  # it up even in a month with no merges.
+  schedule:
+    - cron: "17 6 3 * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
@@ -77,9 +81,12 @@ jobs:
       contents: read
       packages: write
     env:
-      PUBLISH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+      PUBLISH: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@v4
+
+      - id: geoip
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -111,7 +118,9 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: ${{ env.PUBLISH == 'true' }}
-          build-args: RELEASE=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('edge-{0}', github.sha) }}
+          build-args: |
+            RELEASE=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('edge-{0}', github.sha) }}
+            GEOIP_MONTH=${{ steps.geoip.outputs.month }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
