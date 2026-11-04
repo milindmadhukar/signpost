@@ -42,8 +42,9 @@
   {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
 </div>
 
-<div class="mt-3 grid gap-3 md:grid-cols-2">
-  {{template "barlist-card" dict "Title" "Countries" "Rows" (index .Lists "Countries")}}
+{{template "geo-card" dict "Map" (worldMap $s) "Rows" (index .Lists "Countries") "Credit" geoCredit}}
+
+<div class="mt-3 grid gap-3 md:grid-cols-3">
   {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
   {{template "barlist-card" dict "Title" "Browsers" "Rows" (index .Lists "Browsers")}}
   {{template "barlist-card" dict "Title" "Operating systems" "Rows" (index .Lists "OS")}}
@@ -138,6 +139,11 @@
 {{define "barlist-card"}}
 <div class="card">
   <div class="card-head"><div class="card-title">{{.Title}}</div><span class="text-xs text-fg-3">Clicks</span></div>
+  {{template "barlist-rows" .}}
+</div>
+{{end}}
+
+{{define "barlist-rows"}}
   <div class="p-2">
     {{range .Rows}}
     <div class="barlist-row">
@@ -149,6 +155,41 @@
     {{else}}
     <div class="px-2 py-8 text-center text-[13px] text-fg-3">Nothing yet</div>
     {{end}}
+  </div>
+{{end}}
+
+{{/* Choropleth of clicks by country, with the top countries beside it as
+     the readable table. Hover (or tap) a country for its numbers. */}}
+{{define "geo-card"}}{{$m := .Map}}
+<div class="card mt-3" id="locations">
+  <div class="card-head">
+    <div><div class="card-title">Locations</div><div class="text-xs text-fg-3">Clicks by country</div></div>
+    <span class="text-xs text-fg-3">Clicks</span>
+  </div>
+  <div class="grid lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
+    <div class="min-w-0 px-4 pt-3 pb-4">
+      <div class="relative" data-geo>
+        <svg class="geo block h-auto w-full" viewBox="{{$m.ViewBox}}" role="img" aria-label="World map of clicks by country. The list beside it has the numbers.">
+          {{- range $m.Shapes}}<path class="geo-{{.Level}}" d="{{.D}}"{{if .Code}} data-name="{{.Name}}" data-n="{{.N}}" data-pct="{{.Pct}}"{{end}}/>{{end -}}
+        </svg>
+        <div class="geo-tip" role="status" hidden></div>
+        {{if eq $m.Max 0}}<div class="pointer-events-none absolute inset-0 flex items-center justify-center text-[13px] text-fg-3">{{if $m.Total}}No clicks with a known country{{else}}No clicks in this period{{end}}</div>{{end}}
+      </div>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] text-fg-3">
+        <span>
+          {{- if $m.Unknown}}{{plural $m.Unknown "click"}} with no known country{{if $m.Unmapped}}, {{thousands $m.Unmapped}} from places too small to draw{{end}}
+          {{- else if $m.Unmapped}}{{plural $m.Unmapped "click"}} from places too small to draw
+          {{- end}}{{if $.Credit}}{{if or $m.Unknown $m.Unmapped}} · {{end}}<a class="hover:text-fg-2 hover:underline" href="https://db-ip.com" target="_blank" rel="noopener">IP geolocation by DB-IP</a>{{end -}}
+        </span>
+        <span class="flex items-center gap-1.5" aria-hidden="true">
+          <span class="geo-key geo-0"></span><span class="mr-1.5">None</span>
+          <span class="num">1</span>
+          <span class="geo-key geo-1"></span><span class="geo-key geo-2"></span><span class="geo-key geo-3"></span><span class="geo-key geo-4"></span><span class="geo-key geo-5"></span>
+          <span class="num">{{if gt $m.Max 1}}{{thousands $m.Max}}{{else}}1{{end}}</span>
+        </span>
+      </div>
+    </div>
+    <div class="border-t border-line lg:border-t-0 lg:border-l">{{template "barlist-rows" .}}</div>
   </div>
 </div>
 {{end}}

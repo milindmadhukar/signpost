@@ -74,13 +74,15 @@ type Stats struct {
 	Heat    [7][24]int `json:"heatmap"`
 	HeatMax int        `json:"-"`
 
-	Links     []statRow     `json:"top_links"`
-	Referrers []statRow     `json:"referrers"`
-	Countries []statRow     `json:"countries"`
-	Devices   []statRow     `json:"devices"`
-	Browsers  []statRow     `json:"browsers"`
-	OSes      []statRow     `json:"os"`
-	Recent    []recentClick `json:"recent"`
+	Links     []statRow `json:"top_links"`
+	Referrers []statRow `json:"referrers"`
+	Countries []statRow `json:"countries"`
+	// GeoCountries is every country, for the map; Countries is its top 8.
+	GeoCountries []statRow     `json:"-"`
+	Devices      []statRow     `json:"devices"`
+	Browsers     []statRow     `json:"browsers"`
+	OSes         []statRow     `json:"os"`
+	Recent       []recentClick `json:"recent"`
 
 	Range  statRange `json:"-"`
 	Offset int64     `json:"-"` // TZ in seconds
@@ -183,12 +185,13 @@ func (s *Store) Stats(q statsQuery) (*Stats, error) {
 	for i := range st.Referrers {
 		st.Referrers[i].Label = or(st.Referrers[i].Key, "Direct / none")
 	}
-	if st.Countries, err = top("country", 8); err != nil {
+	if st.GeoCountries, err = top("country", 400); err != nil {
 		return nil, err
 	}
-	for i := range st.Countries {
-		st.Countries[i].Label = countryName(st.Countries[i].Key)
+	for i := range st.GeoCountries {
+		st.GeoCountries[i].Label = countryName(st.GeoCountries[i].Key)
 	}
+	st.Countries = st.GeoCountries[:min(8, len(st.GeoCountries))]
 	if st.Devices, err = top("device", 4); err != nil {
 		return nil, err
 	}
@@ -313,25 +316,6 @@ func delta(cur, prev int) (string, int) {
 		sign = -1
 	}
 	return fmt.Sprintf("%+.0f%%", pct), sign
-}
-
-// Country names for the codes Cloudflare sends (ISO 3166-1 alpha-2). Codes
-// not listed fall back to the code itself.
-var countries = map[string]string{
-	"AE": "United Arab Emirates", "AR": "Argentina", "AT": "Austria", "AU": "Australia", "BD": "Bangladesh",
-	"BE": "Belgium", "BG": "Bulgaria", "BR": "Brazil", "BY": "Belarus", "CA": "Canada", "CH": "Switzerland",
-	"CL": "Chile", "CN": "China", "CO": "Colombia", "CZ": "Czechia", "DE": "Germany", "DK": "Denmark",
-	"DZ": "Algeria", "EE": "Estonia", "EG": "Egypt", "ES": "Spain", "FI": "Finland", "FR": "France",
-	"GB": "United Kingdom", "GH": "Ghana", "GR": "Greece", "HK": "Hong Kong", "HR": "Croatia", "HU": "Hungary",
-	"ID": "Indonesia", "IE": "Ireland", "IL": "Israel", "IN": "India", "IQ": "Iraq", "IR": "Iran", "IS": "Iceland",
-	"IT": "Italy", "JP": "Japan", "KE": "Kenya", "KR": "South Korea", "KW": "Kuwait", "KZ": "Kazakhstan",
-	"LK": "Sri Lanka", "LT": "Lithuania", "LU": "Luxembourg", "LV": "Latvia", "MA": "Morocco", "MX": "Mexico",
-	"MY": "Malaysia", "NG": "Nigeria", "NL": "Netherlands", "NO": "Norway", "NP": "Nepal", "NZ": "New Zealand",
-	"OM": "Oman", "PE": "Peru", "PH": "Philippines", "PK": "Pakistan", "PL": "Poland", "PT": "Portugal",
-	"QA": "Qatar", "RO": "Romania", "RS": "Serbia", "RU": "Russia", "SA": "Saudi Arabia", "SE": "Sweden",
-	"SG": "Singapore", "SI": "Slovenia", "SK": "Slovakia", "TH": "Thailand", "TR": "Türkiye", "TW": "Taiwan",
-	"UA": "Ukraine", "US": "United States", "UY": "Uruguay", "VE": "Venezuela", "VN": "Vietnam",
-	"ZA": "South Africa", "T1": "Tor", "XX": "Unknown",
 }
 
 func countryName(code string) string {

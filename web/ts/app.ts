@@ -366,6 +366,61 @@ document.addEventListener("htmx:responseError", (e) => {
   }
 });
 
+// ---- World map: a tooltip per country, following the pointer. A mouse
+// shows it on hover; a tap shows it until the next tap elsewhere. ----
+
+function geoCountry(t: EventTarget | null): SVGPathElement | null {
+  return t instanceof Element ? t.closest<SVGPathElement>(".geo path[data-name]") : null;
+}
+
+function hideGeoTips(): void {
+  for (const tip of $$("[data-geo] .geo-tip")) tip.hidden = true;
+  for (const p of $$<SVGPathElement>(".geo path.on")) p.classList.remove("on");
+}
+
+function showGeoTip(path: SVGPathElement, e: PointerEvent): void {
+  const box = path.closest<HTMLElement>("[data-geo]");
+  const tip = box && $(".geo-tip", box);
+  if (!box || !tip) return;
+  if (!path.classList.contains("on")) {
+    hideGeoTips();
+    path.classList.add("on");
+    // Last in the SVG paints on top, so the outline is not hidden under a neighbour.
+    path.parentNode?.append(path);
+  }
+  const n = Number(path.dataset.n ?? 0);
+  const name = document.createElement("span");
+  name.className = "font-semibold";
+  name.textContent = path.dataset.name ?? "";
+  const rest = document.createElement("span");
+  rest.className = "opacity-70";
+  rest.textContent = n > 0 ? ` · ${n.toLocaleString("en-US")} click${n === 1 ? "" : "s"} · ${path.dataset.pct ?? ""}` : " · No clicks";
+  tip.replaceChildren(name, rest);
+  tip.hidden = false;
+
+  // Centre on the pointer, kept inside the map; below it when near the top.
+  const r = box.getBoundingClientRect();
+  const half = tip.offsetWidth / 2;
+  const x = Math.min(Math.max(e.clientX - r.left, half), Math.max(r.width - half, half));
+  const y = e.clientY - r.top;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+  tip.style.transform = y < tip.offsetHeight + 14 ? "translate(-50%, 14px)" : "";
+}
+
+document.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse") return;
+  const path = geoCountry(e.target);
+  if (path) showGeoTip(path, e);
+  else if ($(".geo path.on")) hideGeoTips();
+});
+document.addEventListener("pointerdown", (e) => {
+  const path = geoCountry(e.target);
+  if (path) showGeoTip(path, e);
+  else hideGeoTips();
+});
+document.addEventListener("htmx:beforeSwap", hideGeoTips);
+
 // Keep the viewer's time zone fresh for server-side bucketing.
 document.cookie = `tz=${-new Date().getTimezoneOffset()};path=/;samesite=lax;max-age=31536000`;
 

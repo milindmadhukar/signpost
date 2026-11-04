@@ -108,6 +108,7 @@ func serve(cfg Config) error {
 			log.Printf("warning: SIGNPOST_GEOIP_DB: %v; countries will come from Cloudflare only", err)
 		} else {
 			app.geo = g
+			geoCredit.Store(strings.HasPrefix(strings.ToUpper(g.desc), "DBIP"))
 			defer g.Close()
 			log.Printf("country lookups from %s (%s, built %s)", cfg.GeoIPDB, g.desc, g.built.Format("2006-01-02"))
 		}
