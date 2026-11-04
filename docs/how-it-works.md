@@ -142,8 +142,17 @@ unique visitors can be counted. The next day the hash is different, so nobody
 can be followed across days, and the IP cannot be recovered from it.
 
 Country comes from Cloudflare's `CF-IPCountry` header when your domain is
-proxied by Cloudflare; otherwise it is left empty. signpost does no GeoIP
-lookups and calls no external service.
+proxied by Cloudflare. Otherwise, or when Cloudflare reports `XX`
+(unknown), signpost looks the IP up in a MaxMind-format country database
+on disk (`SIGNPOST_GEOIP_DB`). The image ships
+[DB-IP's free country database](https://db-ip.com/db/download/ip-to-country-lite),
+which CI refreshes monthly. The lookup happens in the process, nothing is
+sent anywhere, and only the two-letter code is kept. Without a database,
+clicks on domains that are not proxied are recorded with no country.
+
+The Analytics page draws countries on a world map (Natural Earth's
+1:50m country shapes, generated into `web/world.txt` by `tools/worldmap`),
+shaded on a log scale so one busy country does not wash out the rest.
 
 Link previews and crawlers (Slack, WhatsApp, Discord, facebookexternalhit,
 Twitterbot, Googlebot, curl and many more) are recorded but excluded from

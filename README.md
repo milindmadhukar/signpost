@@ -62,8 +62,8 @@ the domains you already have, through the reverse proxy you already run.
   binary in a `FROM scratch` image for amd64, arm64 and armv7 (so a Raspberry
   Pi works too), one database file, no Node, no CDN, no external services.
 - **Analytics without tracking.** Clicks, unique visitors, referrers,
-  countries, devices and a weekday-by-hour heatmap. No IP address is ever
-  stored, and link previews and crawlers are filtered out.
+  devices, a weekday-by-hour heatmap and a world map of countries. No IP
+  address is ever stored, and link previews and crawlers are filtered out.
 
 ## Screenshots
 
@@ -274,11 +274,13 @@ share is a few microseconds.
 
 - Clicks and unique visitors against the previous period, a time series, and
   a weekday-by-hour heatmap in your time zone
-- Top referrers, countries, devices, browsers, operating systems and links
+- A world map of clicks by country, with the top countries beside it
+- Top referrers, devices, browsers, operating systems and links
 - Link previews and crawlers (Slack, WhatsApp, facebookexternalhit,
   Googlebot, curl and more) are recorded but not counted
 - Visitors are a daily-rotating hash; no IP address is stored. Country comes
-  from Cloudflare's `CF-IPCountry` when present.
+  from Cloudflare's `CF-IPCountry` when the domain is proxied, and otherwise
+  from a country database inside the image, looked up locally
 
 **Operations**
 
@@ -374,3 +376,8 @@ $ git tag -s v1.2.3 -m "signpost v1.2.3" && git push origin v1.2.3
 ## License
 
 [MIT](LICENSE)
+
+The Docker image includes [IP geolocation by DB-IP](https://db-ip.com)
+(IP to Country Lite, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
+The world map is drawn from [Natural Earth](https://www.naturalearthdata.com)
+(public domain).
