@@ -171,7 +171,10 @@
   .card-body { @apply p-4; }
 
   /* Tables */
-  .table { @apply w-full border-collapse text-left text-[13px]; }
+  /* relative: a table is often wider than its card and scrolls inside an
+     overflow-x-auto box, and an absolutely positioned child (an sr-only
+     header label) would otherwise hang off the page and scroll it sideways. */
+  .table { @apply relative w-full border-collapse text-left text-[13px]; }
   .table th { @apply h-9 border-b border-line px-3 text-xs font-medium text-fg-3 first:pl-4 last:pr-4; }
   .table td { @apply border-b border-line px-3 py-2.5 align-middle first:pl-4 last:pr-4; }
   .table tbody tr:last-child td { @apply border-b-0; }

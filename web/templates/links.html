@@ -68,23 +68,26 @@
           hx-confirm="Delete the selected links? Their click history is deleted with them.">{{icon "trash-2" "icon-sm"}}Delete</button>
       </div>
     </div>
-    <div class="overflow-x-auto md:overflow-visible">
+    {{/* Columns appear by the width the table has (container queries), not
+         the window's, which the sidebar takes 240px of. The Link column takes
+         what is left and truncates, so the table never outgrows its card. */}}
+    <div class="@container overflow-x-auto md:overflow-visible">
     <table class="table">
       <thead><tr>
         <th class="w-10 p-0 first:pl-0"><label class="flex h-9 cursor-pointer items-center pl-4 pr-3"><input type="checkbox" class="check" id="select-all" aria-label="Select all"></label></th>
-        <th>Link</th>
-        <th class="hidden lg:table-cell">Destination</th>
-        <th class="hidden md:table-cell">Last 7 days</th>
+        <th class="w-full">Link</th>
+        <th class="hidden w-[300px] min-w-[300px] @min-[940px]:table-cell">Destination</th>
+        <th class="hidden @2xl:table-cell">Last 7 days</th>
         <th class="text-right">Clicks</th>
-        <th class="hidden sm:table-cell">Status</th>
-        <th class="hidden xl:table-cell">Created</th>
+        <th class="hidden @lg:table-cell">Status</th>
+        <th class="hidden @min-[1100px]:table-cell">Created</th>
         <th class="w-10 sm:w-20"><span class="sr-only">Actions</span></th>
       </tr></thead>
       <tbody>
       {{range .Rows}}
         <tr data-row class="cursor-pointer">
           <td class="p-0 pl-0 first:pl-0"><label class="flex h-full min-h-12 cursor-pointer items-center pl-4 pr-3"><input type="checkbox" class="check" name="ids" value="{{.ID}}" aria-label="Select {{.URL}}"></label></td>
-          <td class="max-w-[48vw] sm:max-w-[320px]">
+          <td class="max-w-0">
             <div class="flex min-w-0 items-center gap-1.5">
               <a href="/links/{{.ID}}" data-row-link class="truncate font-medium text-fg"><span class="text-fg-3">{{.Host}}</span>{{shown .Path}}</a>
               {{if .Protected}}<span title="Password protected" class="text-fg-3">{{icon "lock" "icon-sm"}}</span>{{end}}
@@ -95,17 +98,17 @@
               {{if .Note}}<span class="truncate text-xs text-fg-3">{{.Note}}</span>{{end}}
             </div>
             {{end}}
-            <div class="mt-1.5 sm:hidden">{{template "state-badge" .State}}</div>
-            <div class="mt-1 truncate text-xs text-fg-3 lg:hidden">{{icon "arrow-up-right" "icon-sm -mt-px mr-0.5 inline"}}{{.Target}}</div>
+            <div class="mt-1.5 @lg:hidden">{{template "state-badge" .State}}</div>
+            <div class="mt-1 truncate text-xs text-fg-3 @min-[940px]:hidden">{{icon "arrow-up-right" "icon-sm -mt-px mr-0.5 inline"}}{{.Target}}</div>
           </td>
-          <td class="hidden max-w-[300px] lg:table-cell">
+          <td class="hidden max-w-0 @min-[940px]:table-cell">
             <div class="truncate text-fg-2" title="{{.Target}}">{{.Target}}</div>
             <div class="mt-0.5 text-xs text-fg-3"><span class="mono">{{.Status}}</span> · {{codeName .Status}}{{if not .KeepQuery}} · drops query{{end}}{{with .ExpiresAt}} · expires {{date .}}{{end}}</div>
           </td>
-          <td class="hidden md:table-cell"><a href="/links/{{.ID}}" class="flex items-center gap-2 rounded hover:opacity-80" title="Analytics for {{.URL}}">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></a></td>
+          <td class="hidden @2xl:table-cell"><a href="/links/{{.ID}}" class="flex items-center gap-2 rounded hover:opacity-80" title="Analytics for {{.URL}}">{{.Spark}}<span class="w-8 text-xs text-fg-3 num">{{compact .Week}}</span></a></td>
           <td class="text-right font-medium num"><a href="/links/{{.ID}}" class="hover:text-accent hover:underline" title="Analytics for {{.URL}}">{{thousands .Clicks}}</a></td>
-          <td class="hidden sm:table-cell"><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
-          <td class="hidden whitespace-nowrap text-fg-3 xl:table-cell">{{agoUnix .CreatedAt}}</td>
+          <td class="hidden @lg:table-cell"><span title="{{titleCase .CheckMsg}}">{{template "state-badge" .State}}</span></td>
+          <td class="hidden whitespace-nowrap text-fg-3 @min-[1100px]:table-cell">{{agoUnix .CreatedAt}}</td>
           <td>
             <div class="flex items-center justify-end gap-0.5">
               <button type="button" class="btn btn-ghost btn-icon btn-sm hidden sm:inline-flex" data-copy="{{.Href}}" title="Copy link" aria-label="Copy {{.URL}}">{{icon "copy" "icon-sm"}}</button>
