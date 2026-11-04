@@ -421,6 +421,29 @@ document.addEventListener("pointerdown", (e) => {
 });
 document.addEventListener("htmx:beforeSwap", hideGeoTips);
 
+// The list beside the map: countries or cities, remembered per browser so
+// a range change or another link's page keeps the same one.
+type GeoList = "countries" | "cities";
+
+function geoListPref(): GeoList {
+  return localStorage.getItem("geo-list") === "cities" ? "cities" : "countries";
+}
+
+function applyGeoList(list: GeoList): void {
+  for (const b of $$("[data-geo-list]")) b.setAttribute("aria-pressed", String(b.dataset.geoList === list));
+  for (const p of $$("[data-geo-pane]")) p.hidden = p.dataset.geoPane !== list;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-geo-list]") : null;
+  if (!b) return;
+  const list: GeoList = b.dataset.geoList === "cities" ? "cities" : "countries";
+  localStorage.setItem("geo-list", list);
+  applyGeoList(list);
+});
+document.addEventListener("htmx:load", () => applyGeoList(geoListPref()));
+document.addEventListener("DOMContentLoaded", () => applyGeoList(geoListPref()));
+
 // Keep the viewer's time zone fresh for server-side bucketing.
 document.cookie = `tz=${-new Date().getTimezoneOffset()};path=/;samesite=lax;max-age=31536000`;
 

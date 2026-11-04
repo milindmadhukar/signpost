@@ -108,6 +108,32 @@ func demoSeed(args []string) error {
 	// "" is a click no one could place, which the map reports separately.
 	countriesW := []string{"IN", "NL", "US", "GB", "DE", "FR", "BE", "AE", "SG", "CA", "ES", "AU", "JP", "BR", "PL", "ZA", "MX", "KE", ""}
 	countryW := []float64{34, 20, 14, 8, 6, 4, 3, 3, 2, 2, 2, 2, 1.5, 1.5, 1, 0.6, 0.6, 0.4, 2}
+	// Cities, busiest first; a country left out here gets clicks with no
+	// city, as a real lookup sometimes does.
+	cities := map[string][]string{
+		"IN": {"Mumbai", "Bengaluru", "Pune", "Delhi", "Hyderabad", "Chennai", "Ahmedabad", "Kolkata"},
+		"NL": {"Amsterdam", "Rotterdam", "Utrecht", "Eindhoven"},
+		"US": {"New York", "Los Angeles", "San Francisco", "Chicago", "Austin"},
+		"GB": {"London", "Manchester", "Bristol"},
+		"DE": {"Berlin", "Munich", "Hamburg"},
+		"FR": {"Paris", "Lyon"},
+		"BE": {"Brussels", "Antwerp"},
+		"AE": {"Dubai", "Abu Dhabi"},
+		"SG": {"Singapore"},
+		"CA": {"Toronto", "Vancouver"},
+		"ES": {"Madrid", "Barcelona"},
+		"AU": {"Sydney", "Melbourne"},
+		"JP": {"Tokyo"},
+		"BR": {"São Paulo"},
+	}
+	city := func(country string) string {
+		cs := cities[country]
+		if len(cs) == 0 || r.IntN(10) == 0 {
+			return ""
+		}
+		// Weighted towards the first: the min of two draws.
+		return cs[min(r.IntN(len(cs)), r.IntN(len(cs)))]
+	}
 	uas := []string{
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0 (iPhone15,3; iOS 18_1; en_US)",
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
@@ -179,8 +205,9 @@ func demoSeed(args []string) error {
 			p := parseUA(ua)
 			// A pool of returning visitors: most people click more than once.
 			ip := fmt.Sprintf("10.0.%d.%d", r.IntN(8), r.IntN(250))
+			country := pick(countriesW, countryW)
 			evs = append(evs, clickEvent{l.ID, Click{
-				At: at.Unix(), Referrer: ref, RefHost: refHost(ref), Country: pick(countriesW, countryW), UA: ua,
+				At: at.Unix(), Referrer: ref, RefHost: refHost(ref), Country: country, City: city(country), UA: ua,
 				Device: p.Device, Browser: p.Browser, OS: p.OS, Bot: p.Bot, Visitor: app.visitor(at, ip, ua),
 			}})
 		}

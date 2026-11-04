@@ -96,13 +96,43 @@ test.describe("analytics", () => {
     await expect(tip).toBeVisible();
     await expect(tip).toContainText(/India · [\d,]+ clicks · \d+%/);
     // The list beside the map agrees with the tooltip.
-    const n = (await card.locator(".barlist-row", { hasText: "India" }).locator(".font-medium").textContent())!.trim();
+    const n = (await card.locator('[data-geo-pane="countries"] .barlist-row', { hasText: "India" }).locator(".font-medium").textContent())!.trim();
     await expect(tip).toContainText(`${n} click`);
 
     const title = card.locator(".card-title");
     if (isMobile) await title.tap();
     else await title.hover();
     await expect(tip).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+
+  // The switch swaps the list beside the map, and the choice survives a
+  // range change and a reload.
+  test("locations list switches between countries and cities", async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto("/analytics?range=30d");
+    await page.evaluate(() => localStorage.removeItem("geo-list"));
+    await page.reload();
+    const card = page.locator("#locations");
+    const countries = card.locator('[data-geo-pane="countries"]');
+    const cities = card.locator('[data-geo-pane="cities"]');
+    await expect(countries).toBeVisible();
+    await expect(cities).toBeHidden();
+    await expect(countries.locator(".barlist-row").first()).toContainText("India");
+
+    await card.getByRole("button", { name: "Cities" }).click();
+    await expect(card.getByRole("button", { name: "Cities" })).toHaveAttribute("aria-pressed", "true");
+    await expect(countries).toBeHidden();
+    // "City, Country", and India's busiest city is in the list.
+    await expect(cities.locator(".barlist-row").first()).toContainText(/\S, \S/);
+    await expect(cities.locator(".barlist-row", { hasText: "Mumbai, India" })).toBeVisible();
+
+    await page.goto("/analytics?range=7d");
+    await expect(page.locator('#locations [data-geo-pane="cities"]')).toBeVisible();
+    await expect(page.locator("#locations").getByRole("button", { name: "Cities" })).toHaveAttribute("aria-pressed", "true");
+
+    await page.locator("#locations").getByRole("button", { name: "Countries" }).click();
+    await expect(page.locator('#locations [data-geo-pane="countries"]')).toBeVisible();
     expect(errors).toEqual([]);
   });
 });

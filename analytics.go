@@ -351,12 +351,14 @@ func countryName(code string) string {
 	return strings.ToUpper(code)
 }
 
-// placeName is "Pune, India", or just the country when there is no city.
+// placeName is "Pune, India", or just the country when there is no city,
+// or just the city when it is the country ("Singapore", not twice).
 func placeName(country, city string) string {
-	if city == "" || country == "" {
-		return countryName(country)
+	name := countryName(country)
+	if city == "" || country == "" || strings.EqualFold(city, name) {
+		return name
 	}
-	return city + ", " + countryName(country)
+	return city + ", " + name
 }
 
 // linkStat is one link's row in the per-link table on the Analytics page.

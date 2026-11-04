@@ -42,7 +42,7 @@
   {{template "barlist-card" dict "Title" "Referrers" "Rows" (index .Lists "Referrers")}}
 </div>
 
-{{template "geo-card" dict "Map" (worldMap $s) "Rows" (index .Lists "Countries") "Credit" geoCredit}}
+{{template "geo-card" dict "Map" (worldMap $s) "Rows" (index .Lists "Countries") "Cities" (index .Lists "Cities") "Credit" geoCredit}}
 
 <div class="mt-3 grid gap-3 md:grid-cols-3">
   {{template "barlist-card" dict "Title" "Devices" "Rows" (index .Lists "Devices")}}
@@ -55,14 +55,14 @@
   {{if $s.Recent}}
   <div class="overflow-x-auto">
   <table class="table">
-    <thead><tr><th>Time</th>{{if .Global}}<th>Link</th>{{end}}<th>Referrer</th><th>Country</th><th class="hidden md:table-cell">Device</th><th class="hidden md:table-cell">Browser</th></tr></thead>
+    <thead><tr><th>Time</th>{{if .Global}}<th>Link</th>{{end}}<th>Referrer</th><th>Location</th><th class="hidden md:table-cell">Device</th><th class="hidden md:table-cell">Browser</th></tr></thead>
     <tbody>
     {{range $s.Recent}}
       <tr>
         <td class="whitespace-nowrap text-fg-2 num">{{agoUnix .At}}</td>
         {{if $.Global}}<td><a class="font-medium text-fg hover:text-accent" href="/links/{{.LinkID}}">{{.LinkURL}}</a></td>{{end}}
         <td class="max-w-56 truncate text-fg-2" title="{{.Referrer}}">{{or .RefHost "Direct / none"}}</td>
-        <td class="text-fg-2">{{countryName .Country}}</td>
+        <td class="max-w-56 truncate text-fg-2" title="{{placeName .Country .City}}">{{placeName .Country .City}}</td>
         <td class="hidden text-fg-2 md:table-cell">{{titleCase .Device}}</td>
         <td class="hidden text-fg-2 md:table-cell">{{.Browser}}{{if .OS}} <span class="text-fg-3">· {{.OS}}</span>{{end}}</td>
       </tr>
@@ -153,18 +153,22 @@
       <span class="relative flex shrink-0 items-baseline gap-2 num"><span class="font-medium">{{thousands .N}}</span><span class="w-9 text-right text-xs text-fg-3">{{.Pct}}</span></span>
     </div>
     {{else}}
-    <div class="px-2 py-8 text-center text-[13px] text-fg-3">Nothing yet</div>
+    <div class="px-2 py-8 text-center text-[13px] text-fg-3">{{or $.Empty "Nothing yet"}}</div>
     {{end}}
   </div>
 {{end}}
 
-{{/* Choropleth of clicks by country, with the top countries beside it as
-     the readable table. Hover (or tap) a country for its numbers. */}}
+{{/* Choropleth of clicks by country, with the top countries (or cities,
+     by the switch in the header) beside it as the readable table. Hover
+     (or tap) a country for its numbers. */}}
 {{define "geo-card"}}{{$m := .Map}}
 <div class="card mt-3" id="locations">
   <div class="card-head">
     <div><div class="card-title">Locations</div><div class="text-xs text-fg-3">Clicks by country</div></div>
-    <span class="text-xs text-fg-3">Clicks</span>
+    <div class="seg" role="group" aria-label="List clicks by">
+      <button type="button" data-geo-list="countries" aria-pressed="true">Countries</button>
+      <button type="button" data-geo-list="cities" aria-pressed="false">Cities</button>
+    </div>
   </div>
   <div class="grid lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
     <div class="min-w-0 px-4 pt-3 pb-4">
@@ -189,7 +193,10 @@
         </span>
       </div>
     </div>
-    <div class="border-t border-line lg:border-t-0 lg:border-l">{{template "barlist-rows" .}}</div>
+    <div class="border-t border-line lg:border-t-0 lg:border-l">
+      <div data-geo-pane="countries">{{template "barlist-rows" dict "Rows" .Rows}}</div>
+      <div data-geo-pane="cities" hidden>{{template "barlist-rows" dict "Rows" .Cities "Empty" (or (and .Rows "No clicks with a known city") "")}}</div>
+    </div>
   </div>
 </div>
 {{end}}

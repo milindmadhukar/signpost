@@ -193,3 +193,17 @@ func TestStatsCities(t *testing.T) {
 		t.Fatalf("%d recent clicks have a city, want 6", cities)
 	}
 }
+
+func TestPlaceName(t *testing.T) {
+	for _, c := range []struct{ country, city, want string }{
+		{"IN", "Pune", "Pune, India"},
+		{"IN", "", "India"},
+		{"SG", "Singapore", "Singapore"},
+		{"", "Pune", "Unknown"},
+		{"", "", "Unknown"},
+	} {
+		if got := placeName(c.country, c.city); got != c.want {
+			t.Errorf("placeName(%q, %q) = %q, want %q", c.country, c.city, got, c.want)
+		}
+	}
+}
